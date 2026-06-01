@@ -47,7 +47,7 @@ namespace EMaigrator.Workers.Tests.Control;
 
 public sealed class RedisMigrationControlGateTests : IAsyncLifetime
 {
-    private readonly RedisContainer _redis = new RedisBuilder().WithImage("redis:7-alpine").Build();
+    private readonly RedisContainer _redis = new RedisBuilder().WithImage("redis:8-alpine").Build();
     private ConnectionMultiplexer _mux = null!;
 
     public async Task InitializeAsync()
@@ -2594,7 +2594,7 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer _pg = new PostgreSqlBuilder().WithImage("postgres:16-alpine").Build();
     private readonly RabbitMqContainer _mq = new RabbitMqBuilder().WithImage("rabbitmq:3.13-management").Build();
-    private readonly RedisContainer _redis = new RedisBuilder().WithImage("redis:7-alpine").Build();
+    private readonly RedisContainer _redis = new RedisBuilder().WithImage("redis:8-alpine").Build();
     private readonly IContainer _greenmail = new ContainerBuilder()
         .WithImage("greenmail/standalone:2.1.0")
         .WithEnvironment("GREENMAIL_OPTS",

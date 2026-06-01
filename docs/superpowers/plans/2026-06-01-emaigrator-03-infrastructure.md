@@ -1589,7 +1589,7 @@ namespace EMaigrator.Infrastructure.Tests.Fixtures;
 public sealed class RedisFixture : IAsyncLifetime
 {
     public RedisContainer Container { get; } = new RedisBuilder()
-        .WithImage("redis:7-alpine")
+        .WithImage("redis:8-alpine")
         .Build();
 
     public string ConnectionString => Container.GetConnectionString();
