@@ -1,0 +1,40 @@
+# ---- .NET ----
+bin/
+obj/
+*.user
+*.suo
+.vs/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.nupkg
+project.lock.json
+
+# ---- Node / Vite / React (web) ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+coverage/
+.eslintcache
+
+# ---- Env / secrets ----
+.env
+.env.*
+!.env.example
+*.pem
+appsettings.*.local.json
+secrets.json
+
+# ---- Tooling / OS / IDE ----
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+*.log
+
+# ---- Test / build output ----
+TestResults/
+*.trx
+playwright-report/
