@@ -67,4 +67,17 @@ public class FolderPathTests
         src.Add("C");
         p.Segments.Should().Equal("A", "B");
     }
+
+    [Fact]
+    public void Equals_NullAndDifferentType_ReturnFalse()
+    {
+        FolderPath.Parse("A").Equals(null).Should().BeFalse();
+        FolderPath.Parse("A").Equals((object?)"A").Should().BeFalse();
+    }
+
+    [Fact]
+    public void GetHashCode_EqualPaths_MatchHash()
+    {
+        FolderPath.Parse("A/B").GetHashCode().Should().Be(new FolderPath(new[] { "A", "B" }).GetHashCode());
+    }
 }
