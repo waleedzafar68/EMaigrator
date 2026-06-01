@@ -1,4 +1,5 @@
 using EMaigrator.Infrastructure.Messaging;
+using EMaigrator.Infrastructure.Observability;
 using EMaigrator.Infrastructure.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,6 +51,7 @@ public static class DependencyInjection
         services.AddScoped<EMaigrator.Core.Abstractions.IJobOrchestrator, MassTransitJobOrchestrator>();
 
         // ── Observability (Task 10): OpenTelemetry traces/metrics + Serilog with scrubbing ──────
+        services.AddEmaigratorObservability(config);
 
         // ── Health checks (Task 11): Postgres + RabbitMQ + Redis ────────────────────────────────
 
