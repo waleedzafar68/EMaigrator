@@ -41,3 +41,6 @@ playwright-report/
 
 # ---- Claude Code local settings (machine-local; not shared) ----
 .claude/settings.local.json
+
+# ---- Parallel-execution worktrees (machine-local; not shared) ----
+.worktrees/
