@@ -79,4 +79,42 @@ public class IdentityKeyTests
         var act = () => IdentityKey.Compute(null!);
         act.Should().Throw<ArgumentNullException>();
     }
+
+    // --- coverage gap-closers (Task 17): exercise Message-ID normalization edge branches ---
+
+    [Fact]
+    public void Compute_MessageIdWithoutBrackets_IsNotStripped()
+        => IdentityKey.Compute(new MessageIdentityInput { MessageId = "PlainId@Host", DecodedBodySha256Hex = "x" })
+            .Should().Be("mid:plainid@host");
+
+    [Fact]
+    public void Compute_MessageIdWithLeadingBracketOnly_IsNotStripped()
+        => IdentityKey.Compute(new MessageIdentityInput { MessageId = "<abc", DecodedBodySha256Hex = "x" })
+            .Should().Be("mid:<abc");
+
+    [Fact]
+    public void Compute_SingleCharMessageId_IsNotStripped()
+        => IdentityKey.Compute(new MessageIdentityInput { MessageId = "x", DecodedBodySha256Hex = "y" })
+            .Should().Be("mid:x");
+
+    [Fact]
+    public void Compute_MessageIdEmptyAfterBracketStrip_FallsBackToHash()
+        => IdentityKey.Compute(new MessageIdentityInput { MessageId = "<>", DecodedBodySha256Hex = "z" })
+            .Should().StartWith("h:");
+
+    [Fact]
+    public void Compute_FallbackWithAllNullOptionalFields_StillHashes()
+    {
+        var key = IdentityKey.Compute(new MessageIdentityInput
+        {
+            MessageId = null,
+            From = null,
+            To = null,
+            Subject = null,
+            Date = null,
+            DecodedBodySha256Hex = "only-the-body-fingerprint",
+        });
+        key.Should().StartWith("h:");
+        key.Substring(2).Should().MatchRegex("^[0-9a-f]{64}$");
+    }
 }
