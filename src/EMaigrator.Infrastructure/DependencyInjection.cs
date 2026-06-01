@@ -3,6 +3,7 @@ using EMaigrator.Infrastructure.Messaging;
 using EMaigrator.Infrastructure.Observability;
 using EMaigrator.Infrastructure.Persistence;
 using EMaigrator.Infrastructure.RateLimiting;
+using EMaigrator.Infrastructure.Secrets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +36,16 @@ public static class DependencyInjection
         services.AddScoped<EMaigrator.Core.Abstractions.ILedger, PostgresLedger>();
 
         // ── Secrets (Tasks 5/6): EnvelopeCipher + mode-switched ISecretStore (LocalKey | AzureKeyVault) ─
+        services.AddSingleton<EnvelopeCipher>();
+        services.AddSingleton<EMaigrator.Core.Abstractions.ISecretStore>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<InfrastructureOptions>>().Value;
+            var factory = sp.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
+            var cipher = sp.GetRequiredService<EnvelopeCipher>();
+            var ssOptions = Options.Create(opts.SecretStore);
+            IKeyWrapper wrapper = new LocalKeyWrapper(ssOptions);
+            return new LocalKeyEnvelopeSecretStore(factory, wrapper, cipher);
+        });
 
         // ── Rate limiting (Tasks 7/8): Redis multiplexer + RateLimitOptions + RedisRateLimiter ──
         services.AddSingleton<IConnectionMultiplexer>(sp =>
