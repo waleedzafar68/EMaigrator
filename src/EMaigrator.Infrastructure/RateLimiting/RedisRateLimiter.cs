@@ -16,6 +16,12 @@ public sealed class RedisRateLimiter : IRateLimiter
     private readonly IConnectionMultiplexer _mux;
     private readonly RateLimitOptions _options;
 
+    // AIMD adaptive backoff tuning: each grant additively recovers the multiplier toward 1.0;
+    // each penalty multiplicatively decreases it, floored so a key never starves entirely.
+    private const double AdditiveIncrease = 0.02;
+    private const double DecreaseFactor = 0.5;
+    private const double MultiplierFloor = 0.05;
+
     public RedisRateLimiter(IConnectionMultiplexer mux, IOptions<RateLimitOptions> options)
     {
         ArgumentNullException.ThrowIfNull(mux);
@@ -62,6 +68,7 @@ public sealed class RedisRateLimiter : IRateLimiter
                 spec.Burst.ToString(CultureInfo.InvariantCulture),
                 now.ToString(CultureInfo.InvariantCulture),
                 tokens.ToString(CultureInfo.InvariantCulture),
+                AdditiveIncrease.ToString(CultureInfo.InvariantCulture),
             }).ConfigureAwait(false);
         return (long)result == 1;
     }
@@ -70,5 +77,21 @@ public sealed class RedisRateLimiter : IRateLimiter
     {
         var db = _mux.GetDatabase();
         await db.StringSetAsync(PenaltyKey(key), "1", retryAfter).ConfigureAwait(false);
+        await db.ScriptEvaluateAsync(
+            TokenBucketScripts.Penalize,
+            new RedisKey[] { BucketKey(key) },
+            new RedisValue[]
+            {
+                DecreaseFactor.ToString(CultureInfo.InvariantCulture),
+                MultiplierFloor.ToString(CultureInfo.InvariantCulture),
+            }).ConfigureAwait(false);
+    }
+
+    /// <summary>Test/observability helper: reads the current AIMD effective-refill multiplier for a key.</summary>
+    public async Task<double> GetEffectiveMultiplierAsync(RateLimitKey key)
+    {
+        var db = _mux.GetDatabase();
+        var v = await db.HashGetAsync(BucketKey(key), "mult").ConfigureAwait(false);
+        return v.IsNull ? 1.0 : (double)v;
     }
 }
