@@ -1,3 +1,4 @@
+using EMaigrator.Infrastructure.Messaging;
 using EMaigrator.Infrastructure.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -39,6 +40,14 @@ public static class DependencyInjection
         services.AddSingleton<EMaigrator.Core.Abstractions.IRateLimiter, RedisRateLimiter>();
 
         // ── Messaging (Task 9): MassTransit/RabbitMQ (gated by registerBus) + IJobOrchestrator ──
+        var orchSection = config.GetSection($"{InfrastructureOptions.SectionName}:Orchestration");
+        services.Configure<EMaigrator.Core.Configuration.OrchestrationOptions>(orchSection);
+        if (registerBus)
+        {
+            services.AddEmaigratorMessaging(
+                config.GetSection(InfrastructureOptions.SectionName)["RabbitMqConnectionString"] ?? "");
+        }
+        services.AddScoped<EMaigrator.Core.Abstractions.IJobOrchestrator, MassTransitJobOrchestrator>();
 
         // ── Observability (Task 10): OpenTelemetry traces/metrics + Serilog with scrubbing ──────
 
