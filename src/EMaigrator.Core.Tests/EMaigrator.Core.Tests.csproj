@@ -34,4 +34,12 @@
     <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Test-only references so FoundationAcceptanceTests can Assembly.Load every production
+         assembly (they are copied into the test bin). EMaigrator.Core still references nothing. -->
+    <ProjectReference Include="..\EMaigrator.Workers\EMaigrator.Workers.csproj" />
+    <ProjectReference Include="..\EMaigrator.Api\EMaigrator.Api.csproj" />
+    <ProjectReference Include="..\EMaigrator.Cli\EMaigrator.Cli.csproj" />
+  </ItemGroup>
+
 </Project>
