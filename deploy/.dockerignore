@@ -1,0 +1,9 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.git/
+**/TestResults/
+web/
+docs/
+design_handoff_emaigrator/

@@ -1,0 +1,14 @@
+# syntax=docker/dockerfile:1
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /app
+COPY src/Directory.Build.props src/Directory.Packages.props src/EMaigrator.sln ./src/
+COPY src/ ./src/
+RUN dotnet restore src/EMaigrator.Api/EMaigrator.Api.csproj
+RUN dotnet publish src/EMaigrator.Api/EMaigrator.Api.csproj -c Release -o /out --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+COPY --from=build /out ./
+ENTRYPOINT ["dotnet", "EMaigrator.Api.dll"]
