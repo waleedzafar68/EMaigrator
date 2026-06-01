@@ -27,11 +27,11 @@ Execute with `superpowers-extended-cc:subagent-driven-development` (recommended)
 <!-- BUILD-STATUS:START — auto-maintained; see "Keeping this current" -->
 ## Build Status
 
-_Last updated: 2026-06-02 — Plan 01 (Foundation) in progress._
+_Last updated: 2026-06-02 — Plan 01 (Foundation) complete ✅; implementation underway._
 
 | # | Plan | Sub-tasks | Status | Wave | Verified |
 |---|---|---|---|---|---|
-| 01 | Foundation | 8 | 🔵 in progress | A | — |
+| 01 | Foundation | 8 | ✅ done | A | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (21 passed, 0 failed) |
 | 02 | Core | 18 | ⬜ pending | B | — |
 | 03 | Infrastructure | 14 | ⬜ pending | C | — |
 | 04 | Connector: IMAP | 11 | ⬜ pending | C | — |
