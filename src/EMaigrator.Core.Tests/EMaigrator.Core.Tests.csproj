@@ -24,4 +24,14 @@
     <PackageReference Include="NSubstitute" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NetArchTest.Rules" />
+    <!-- Test-only references so the architecture test can name the forbidden assemblies.
+         These load into the test assembly only; EMaigrator.Core itself still references nothing. -->
+    <ProjectReference Include="..\EMaigrator.Infrastructure\EMaigrator.Infrastructure.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Graph\EMaigrator.Connectors.Graph.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
+  </ItemGroup>
+
 </Project>

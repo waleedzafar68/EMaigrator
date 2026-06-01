@@ -13,4 +13,10 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <!-- Test projects use xUnit's Method_Scenario_Expectation naming; CA1707 (no underscores
+       in member names) is noise there. Scoped to *.Tests / *.IntegrationTests by name. -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+  </PropertyGroup>
 </Project>
