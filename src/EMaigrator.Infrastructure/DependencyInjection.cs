@@ -1,5 +1,8 @@
+using EMaigrator.Infrastructure.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using StackExchange.Redis;
 
 namespace EMaigrator.Infrastructure;
 
@@ -22,6 +25,18 @@ public static class DependencyInjection
         // ── Secrets (Tasks 5/6): EnvelopeCipher + mode-switched ISecretStore (LocalKey | AzureKeyVault) ─
 
         // ── Rate limiting (Tasks 7/8): Redis multiplexer + RateLimitOptions + RedisRateLimiter ──
+        services.AddSingleton<IConnectionMultiplexer>(sp =>
+        {
+            var opts = sp.GetRequiredService<IOptions<InfrastructureOptions>>().Value;
+            return ConnectionMultiplexer.Connect(opts.RedisConnectionString);
+        });
+        services.Configure<EMaigrator.Core.Configuration.RateLimitOptions>(o =>
+        {
+            var opts = config.GetSection(InfrastructureOptions.SectionName).Get<InfrastructureOptions>()
+                       ?? new InfrastructureOptions();
+            o.Buckets = opts.RateLimit.Buckets;
+        });
+        services.AddSingleton<EMaigrator.Core.Abstractions.IRateLimiter, RedisRateLimiter>();
 
         // ── Messaging (Task 9): MassTransit/RabbitMQ (gated by registerBus) + IJobOrchestrator ──
 
