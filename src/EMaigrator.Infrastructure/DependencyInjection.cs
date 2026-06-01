@@ -1,4 +1,5 @@
 using EMaigrator.Infrastructure.Data;
+using EMaigrator.Infrastructure.Health;
 using EMaigrator.Infrastructure.Messaging;
 using EMaigrator.Infrastructure.Observability;
 using EMaigrator.Infrastructure.Persistence;
@@ -75,6 +76,9 @@ public static class DependencyInjection
         services.AddEmaigratorObservability(config);
 
         // ── Health checks (Task 11): Postgres + RabbitMQ + Redis ────────────────────────────────
+        var infraOptions = config.GetSection(InfrastructureOptions.SectionName).Get<InfrastructureOptions>()
+                           ?? new InfrastructureOptions();
+        services.AddEmaigratorHealthChecks(infraOptions);
 
         // ── Retention (Task 12): RetentionOptions + ICredentialPurgeHook + LogRetentionPurgeService ─
 
