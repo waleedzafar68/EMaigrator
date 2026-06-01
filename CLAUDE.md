@@ -27,13 +27,13 @@ Execute with `superpowers-extended-cc:subagent-driven-development` (recommended)
 <!-- BUILD-STATUS:START — auto-maintained; see "Keeping this current" -->
 ## Build Status
 
-_Last updated: 2026-06-02 — Plan 02 (Core) complete ✅; Wave C (infra · connectors · frontend) unblocked._
+_Last updated: 2026-06-02 — Plan 03 (Infrastructure) complete ✅; connectors (04·05·06) + frontend (10) remain in Wave C, Wave D (07 workers) needs connectors._
 
 | # | Plan | Sub-tasks | Status | Wave | Verified |
 |---|---|---|---|---|---|
 | 01 | Foundation | 8 | ✅ done | A | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (21 passed, 0 failed) |
 | 02 | Core | 18 | ✅ done | B | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (115 passed, 0 failed; Core coverage line 1.00 / branch 0.99) |
-| 03 | Infrastructure | 14 | ⬜ pending | C | — |
+| 03 | Infrastructure | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (153 passed, 0 failed; Infra integration 31 via Testcontainers, security + functional gates green) |
 | 04 | Connector: IMAP | 11 | ⬜ pending | C | — |
 | 05 | Connector: Graph | 14 | ⬜ pending | C | — |
 | 06 | Connector: Gmail | 14 | ⬜ pending | C | — |
