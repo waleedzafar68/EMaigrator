@@ -38,3 +38,6 @@ Thumbs.db
 TestResults/
 *.trx
 playwright-report/
+
+# ---- Claude Code local settings (machine-local; not shared) ----
+.claude/settings.local.json

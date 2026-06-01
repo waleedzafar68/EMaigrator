@@ -1,0 +1,12 @@
+# syntax=docker/dockerfile:1
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /app
+COPY src/Directory.Build.props src/Directory.Packages.props src/EMaigrator.sln ./src/
+COPY src/ ./src/
+RUN dotnet restore src/EMaigrator.Workers/EMaigrator.Workers.csproj
+RUN dotnet publish src/EMaigrator.Workers/EMaigrator.Workers.csproj -c Release -o /out --no-restore
+
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /out ./
+ENTRYPOINT ["dotnet", "EMaigrator.Workers.dll"]
