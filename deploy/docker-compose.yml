@@ -34,7 +34,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7
+    image: redis:8
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"

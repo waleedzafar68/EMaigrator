@@ -6,7 +6,7 @@
 
 **Architecture:** A single .NET 10 solution under `/src` with `EMaigrator.Core` referencing nothing, connectors and `EMaigrator.Infrastructure` referencing only `Core`, and `EMaigrator.Workers`/`Api`/`Cli` composing via project references; mirrored `*.Tests` (and `*.IntegrationTests` where I/O is involved). A `/web` Vite SPA is a pure client stub. `/deploy` provides the four-container parity environment. CI gates every push.
 
-**Tech Stack:** C#/.NET 10 (LTS, C# 13, nullable enabled), xUnit + FluentAssertions + NSubstitute, NetArchTest.Rules for the dependency-rule test; Vite + React 19 + TypeScript + Tailwind v4 + shadcn/ui + Vitest + Testing Library; Docker Compose (postgres:17, rabbitmq:4-management, redis:7); GitHub Actions.
+**Tech Stack:** C#/.NET 10 (LTS, C# 13, nullable enabled), xUnit + FluentAssertions + NSubstitute, NetArchTest.Rules for the dependency-rule test; Vite + React 19 + TypeScript + Tailwind v4 + shadcn/ui + Vitest + Testing Library; Docker Compose (postgres:17, rabbitmq:4-management, redis:8); GitHub Actions.
 
 ---
 
@@ -650,7 +650,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 **Acceptance Criteria:**
 - [ ] `docker compose -f deploy/docker-compose.yml config` validates (exit 0).
 - [ ] Compose defines services `api`, `workers`, `postgres`, `rabbitmq`, `redis` with named volumes for postgres and rabbitmq data, and healthchecks on postgres/rabbitmq/redis.
-- [ ] Images pinned: `postgres:17`, `rabbitmq:4-management`, `redis:7`.
+- [ ] Images pinned: `postgres:17`, `rabbitmq:4-management`, `redis:8`.
 - [ ] `Dockerfile.api` is multi-stage (`sdk` build → `aspnet` runtime) targeting `src/EMaigrator.Api`.
 - [ ] `deploy/.env.example` is committed and `deploy/.env` is git-ignored (already covered by root `.gitignore`); no real secrets committed.
 - [ ] `deploy-check.ps1` passes.
@@ -673,7 +673,7 @@ $text = Get-Content $compose -Raw
 foreach ($svc in @('postgres','rabbitmq','redis','api','workers')) {
   if ($text -notmatch "(?m)^\s{2,4}$svc\s*:") { Fail "service missing: $svc" }
 }
-foreach ($img in @('postgres:17','rabbitmq:4-management','redis:7')) {
+foreach ($img in @('postgres:17','rabbitmq:4-management','redis:8')) {
   if ($text -notmatch [regex]::Escape($img)) { Fail "pinned image missing: $img" }
 }
 if (-not (Test-Path "$dir/Dockerfile.api")) { Fail "Dockerfile.api missing" }
@@ -724,7 +724,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:7
+    image: redis:8
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "6379:6379"
