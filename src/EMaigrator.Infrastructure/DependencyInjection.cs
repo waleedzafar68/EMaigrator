@@ -4,6 +4,7 @@ using EMaigrator.Infrastructure.Messaging;
 using EMaigrator.Infrastructure.Observability;
 using EMaigrator.Infrastructure.Persistence;
 using EMaigrator.Infrastructure.RateLimiting;
+using EMaigrator.Infrastructure.Retention;
 using EMaigrator.Infrastructure.Secrets;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -81,6 +82,10 @@ public static class DependencyInjection
         services.AddEmaigratorHealthChecks(infraOptions);
 
         // ── Retention (Task 12): RetentionOptions + ICredentialPurgeHook + LogRetentionPurgeService ─
+        var retentionSection = config.GetSection($"{InfrastructureOptions.SectionName}:Retention");
+        services.Configure<EMaigrator.Core.Configuration.RetentionOptions>(retentionSection);
+        services.AddSingleton<ICredentialPurgeHook, CredentialPurgeHook>();
+        services.AddHostedService<LogRetentionPurgeService>();
 
         return services;
     }
