@@ -39,13 +39,24 @@ public static class DependencyInjection
 
         // ── Secrets (Tasks 5/6): EnvelopeCipher + mode-switched ISecretStore (LocalKey | AzureKeyVault) ─
         services.AddSingleton<EnvelopeCipher>();
+        var secretStoreMode = config.GetSection(InfrastructureOptions.SectionName)["SecretStore:Mode"] ?? "LocalKey";
+        if (secretStoreMode == "AzureKeyVault")
+        {
+            // KMS path: the master key never leaves the vault; wrap/unwrap run inside Key Vault.
+            services.AddSingleton<IKmsClient, AzureKeyVaultKmsClient>();
+            services.AddSingleton<KmsKeyWrapper>();
+        }
         services.AddSingleton<EMaigrator.Core.Abstractions.ISecretStore>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<InfrastructureOptions>>().Value;
             var factory = sp.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
             var cipher = sp.GetRequiredService<EnvelopeCipher>();
             var ssOptions = Options.Create(opts.SecretStore);
-            IKeyWrapper wrapper = new LocalKeyWrapper(ssOptions);
+            IKeyWrapper wrapper = opts.SecretStore.Mode switch
+            {
+                "AzureKeyVault" => sp.GetRequiredService<KmsKeyWrapper>(),
+                _ => new LocalKeyWrapper(ssOptions),
+            };
             return new LocalKeyEnvelopeSecretStore(factory, wrapper, cipher);
         });
 
