@@ -1,0 +1,6 @@
+# EF Core-generated migration code. Not hand-authored; exclude from analyzer/style
+# enforcement so the strict (TreatWarningsAsErrors) build does not fail on
+# generator output (e.g. CA1861 constant-array arguments).
+[*.cs]
+generated_code = true
+dotnet_analyzer_diagnostic.severity = none
