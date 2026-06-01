@@ -1,6 +1,9 @@
+using EMaigrator.Infrastructure.Data;
 using EMaigrator.Infrastructure.Messaging;
 using EMaigrator.Infrastructure.Observability;
+using EMaigrator.Infrastructure.Persistence;
 using EMaigrator.Infrastructure.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -23,6 +26,13 @@ public static class DependencyInjection
             .ValidateOnStart();
 
         // ── Persistence (Task 4): DbContext factory + PostgresLedger ────────────────────────────
+        services.AddDbContextFactory<EmaigratorDbContext>((sp, b) =>
+        {
+            var opts = sp.GetRequiredService<IOptions<InfrastructureOptions>>().Value;
+            b.UseNpgsql(opts.PostgresConnectionString,
+                npg => npg.MigrationsAssembly("EMaigrator.Infrastructure"));
+        });
+        services.AddScoped<EMaigrator.Core.Abstractions.ILedger, PostgresLedger>();
 
         // ── Secrets (Tasks 5/6): EnvelopeCipher + mode-switched ISecretStore (LocalKey | AzureKeyVault) ─
 
