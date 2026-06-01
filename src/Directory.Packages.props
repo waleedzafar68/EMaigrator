@@ -64,4 +64,17 @@
     <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
     <PackageVersion Include="Testcontainers.RabbitMq" Version="4.12.0" />
   </ItemGroup>
+
+  <!-- Plan 04 (Connector: IMAP). MailKit/MimeKit (MIT) are the IMAP client + MIME stack;
+       released in lockstep so the two versions are kept equal. Testcontainers (base) drives the
+       GreenMail container in the IMAP integration tests (the module packages above already depend
+       on it). DI.Abstractions backs the connector's AddImapConnector() registration extension. -->
+  <ItemGroup>
+    <!-- 4.16.0 is the first release patching CVE-2026-41319 (MailKit STARTTLS response
+         injection) and CVE-2026-30227 (MimeKit CRLF injection); earlier 4.x fails NU1902. -->
+    <PackageVersion Include="MailKit" Version="4.16.0" />
+    <PackageVersion Include="MimeKit" Version="4.16.0" />
+    <PackageVersion Include="Testcontainers" Version="4.12.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+  </ItemGroup>
 </Project>

@@ -4,7 +4,15 @@
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-  </PropertyGroup>
+  <ItemGroup>
+    <!-- IMAP client + MIME parsing (MIT). MimeKit ships with MailKit but is referenced
+         explicitly because the connector loads/writes MimeMessage directly. -->
+    <PackageReference Include="MailKit" />
+    <PackageReference Include="MimeKit" />
+    <!-- ILogger / NullLogger injected into the client factory + providers. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <!-- IServiceCollection + TryAddEnumerable for AddImapConnector(). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
 
 </Project>

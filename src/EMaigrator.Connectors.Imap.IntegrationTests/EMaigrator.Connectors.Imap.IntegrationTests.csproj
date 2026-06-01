@@ -17,14 +17,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
+    <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
-    <PackageReference Include="NSubstitute" />
-    <!-- Unit tests instantiate MailKit exception/SASL types and use the DI container. -->
+    <!-- Real GreenMail IMAP/SMTP server via a generic container. -->
+    <PackageReference Include="Testcontainers" />
+    <!-- IMAP/SMTP client + MIME building/parsing used by the fixture and tests. -->
     <PackageReference Include="MailKit" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="MimeKit" />
+    <!-- CapturingLogger implements ILogger for the credential-leak security tests. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
 </Project>
