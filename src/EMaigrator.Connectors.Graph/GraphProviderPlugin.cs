@@ -17,8 +17,22 @@ public sealed class GraphProviderPlugin : IProviderPlugin
     public bool CanBeDestination => true;
 
     public ISourceProvider CreateSource(ConnectionDescriptor descriptor, SecretBundle secrets)
-        => throw new NotSupportedException("Graph source provider is implemented in a later task.");
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(secrets);
+
+        var config = GraphConnectionConfig.FromDescriptor(descriptor, secrets);
+        var client = GraphClientFactory.Build(config);
+        return new GraphSourceProvider(client, config.AccountEmail);
+    }
 
     public IDestinationProvider CreateDestination(ConnectionDescriptor descriptor, SecretBundle secrets)
-        => throw new NotSupportedException("Graph destination provider is implemented in a later task.");
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(secrets);
+
+        var config = GraphConnectionConfig.FromDescriptor(descriptor, secrets);
+        var client = GraphClientFactory.Build(config);
+        return new GraphDestinationProvider(client, config.AccountEmail);
+    }
 }
