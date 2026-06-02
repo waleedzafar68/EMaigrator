@@ -1,0 +1,27 @@
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#users('user')/mailFolders('inbox-id')/messages",
+  "value": [
+    {
+      "id": "msg-1",
+      "internetMessageId": "<m1@contoso.com>",
+      "subject": "First",
+      "receivedDateTime": "2026-05-01T09:30:00Z",
+      "sentDateTime": "2026-04-30T18:00:00Z",
+      "isRead": true,
+      "isDraft": false,
+      "categories": ["Finance"],
+      "body": { "contentType": "text", "content": "hello" }
+    },
+    {
+      "id": "msg-2",
+      "internetMessageId": "<m2@contoso.com>",
+      "subject": "Second",
+      "receivedDateTime": "2026-05-02T10:00:00Z",
+      "sentDateTime": "2026-05-02T09:00:00Z",
+      "isRead": false,
+      "isDraft": false,
+      "categories": [],
+      "body": { "contentType": "text", "content": "world" }
+    }
+  ]
+}
