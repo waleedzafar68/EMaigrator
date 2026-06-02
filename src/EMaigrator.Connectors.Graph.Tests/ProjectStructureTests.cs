@@ -20,6 +20,25 @@ public class ProjectStructureTests
         referenced.Should().NotContain("EMaigrator.Infrastructure");
         referenced.Should().NotContain("EMaigrator.Workers");
         referenced.Should().NotContain("EMaigrator.Api");
+        referenced.Should().NotContain("EMaigrator.Cli");
+    }
+
+    [Fact]
+    public void Dependency_rule_holds_no_higher_layer_references()
+    {
+        var referenced = typeof(GraphProviderPlugin).Assembly
+            .GetReferencedAssemblies()
+            .Select(a => a.Name)
+            .ToArray();
+
+        // DESIGN §15: a connector depends only on EMaigrator.Core (plus framework/SDK packages).
+        referenced.Should().NotContain(new[]
+        {
+            "EMaigrator.Infrastructure",
+            "EMaigrator.Workers",
+            "EMaigrator.Api",
+            "EMaigrator.Cli",
+        });
     }
 
     [Fact]
