@@ -4,7 +4,12 @@
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-  </PropertyGroup>
+  <ItemGroup>
+    <!-- Gmail v1 SDK + Google auth (service-account JSON -> GoogleCredential, DWD impersonation). -->
+    <PackageReference Include="Google.Apis.Gmail.v1" />
+    <PackageReference Include="Google.Apis.Auth" />
+    <!-- IServiceCollection + TryAddEnumerable for AddGmailConnector(). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
 
 </Project>
