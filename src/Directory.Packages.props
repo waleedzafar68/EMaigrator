@@ -77,4 +77,19 @@
     <PackageVersion Include="Testcontainers" Version="4.12.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
   </ItemGroup>
+
+  <!-- Plan 05 (Connector: Graph). Microsoft.Graph v5 (Kiota-based) + Azure.Identity (already pinned above)
+       drive the client-credentials flow; WireMock.Net mocks Graph HTTP for offline fixtures;
+       Microsoft.Extensions.Logging (full package) backs the security gate's LoggerFactory capture.
+       Microsoft.Graph.Core + the Microsoft.Kiota.* packages flow transitively and are auto-pinned
+       (CentralPackageTransitivePinningEnabled); pinned explicitly here for deterministic, audit-clean restore. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.Graph" Version="5.105.0" />
+    <PackageVersion Include="WireMock.Net" Version="2.8.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.8" />
+    <!-- Override the transitive Microsoft.Kiota.Abstractions (Graph.Core 3.2.5 floats to 1.21.1, which has
+         CVE-2026-44503 / GHSA-7j59-v9qr-6fq9, a high-severity RedirectHandler header-leak → fails NU1903).
+         1.22.0 is the patched release; pinning it here lifts the transitive resolution solution-wide. -->
+    <PackageVersion Include="Microsoft.Kiota.Abstractions" Version="1.22.0" />
+  </ItemGroup>
 </Project>

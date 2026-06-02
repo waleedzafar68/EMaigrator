@@ -22,6 +22,13 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
+    <!-- Graph model/error types + Azure.Identity options used directly by tests. -->
+    <PackageReference Include="Microsoft.Graph" />
+    <PackageReference Include="Azure.Identity" />
+    <!-- Offline HTTP mock for Graph; LoggerFactory capture for the security gate; DI for conformance. -->
+    <PackageReference Include="WireMock.Net" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 
 </Project>
