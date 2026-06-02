@@ -4,7 +4,14 @@
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-  </PropertyGroup>
+  <ItemGroup>
+    <!-- Microsoft Graph v5 SDK (brings Microsoft.Graph.Core + Microsoft.Kiota.* transitively;
+         the connector uses Kiota RequestInformation/ParsableFactory for raw MIME import). -->
+    <PackageReference Include="Microsoft.Graph" />
+    <!-- ClientSecretCredential for the app-only client-credentials flow. -->
+    <PackageReference Include="Azure.Identity" />
+    <!-- IServiceCollection + TryAddEnumerable for AddGraphConnector(). -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+  </ItemGroup>
 
 </Project>

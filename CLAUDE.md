@@ -27,7 +27,7 @@ Execute with `superpowers-extended-cc:subagent-driven-development` (recommended)
 <!-- BUILD-STATUS:START — auto-maintained; see "Keeping this current" -->
 ## Build Status
 
-_Last updated: 2026-06-02 — Plan 04 (Connector: IMAP) complete ✅; connectors 05·06 + frontend 10 remain in Wave C; Wave D (07 workers) still needs 05 (graph) for the WorkMail→MS365 v1 lead._
+_Last updated: 2026-06-02 — Plan 05 (Connector: Graph) complete ✅; connector 06 (Gmail) + frontend 10 remain in Wave C; Wave D (07 workers) is now unblocked (deps 02·03·04·05 all ✅) and leads the WorkMail→MS365 v1 path (IMAP source + Graph dest)._
 
 | # | Plan | Sub-tasks | Status | Wave | Verified |
 |---|---|---|---|---|---|
@@ -35,7 +35,7 @@ _Last updated: 2026-06-02 — Plan 04 (Connector: IMAP) complete ✅; connectors
 | 02 | Core | 18 | ✅ done | B | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (115 passed, 0 failed; Core coverage line 1.00 / branch 0.99) |
 | 03 | Infrastructure | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (153 passed, 0 failed; Infra integration 31 via Testcontainers, security + functional gates green) |
 | 04 | Connector: IMAP | 11 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (207 passed, 0 failed; IMAP unit 46 + integration 11 via GreenMail Testcontainers; security userGate + functional gates green) |
-| 05 | Connector: Graph | 14 | ⬜ pending | C | — |
+| 05 | Connector: Graph | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (289 passed, 2 skipped, 0 failed; Graph unit 82 via WireMock; security userGate + functional round-trip gates green; live-smoke + live-audit are opt-in skips) |
 | 06 | Connector: Gmail | 14 | ⬜ pending | C | — |
 | 07 | Workers | 13 | ⬜ pending | D | — |
 | 08 | API | 15 | ⬜ pending | E | — |
