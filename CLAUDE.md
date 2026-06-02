@@ -37,7 +37,7 @@ _Last updated: 2026-06-03 — Plan 06 (Connector: Gmail) complete ✅; all three
 | 04 | Connector: IMAP | 11 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (207 passed, 0 failed; IMAP unit 46 + integration 11 via GreenMail Testcontainers; security userGate + functional gates green) |
 | 05 | Connector: Graph | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (289 passed, 2 skipped, 0 failed; Graph unit 82 via WireMock; security userGate + functional round-trip gates green; live-smoke + live-audit are opt-in skips) |
 | 06 | Connector: Gmail | 14 | ✅ done | C | 2026-06-03 · `dotnet test src/EMaigrator.sln -c Release` (367 passed, 2 skipped, 0 failed; Gmail unit 79 via WireMock; security userGate + functional E2E gates green; paid-Workspace live testing deferred per DESIGN §17) |
-| 07 | Workers | 13 | ⬜ pending | D | — |
+| 07 | Workers | 13 | 🔵 in progress | D | — |
 | 08 | API | 15 | ⬜ pending | E | — |
 | 09 | CLI | 15 | ⬜ pending | E | — |
 | 10 | Frontend | 15 | ⬜ pending | C→F | — |
