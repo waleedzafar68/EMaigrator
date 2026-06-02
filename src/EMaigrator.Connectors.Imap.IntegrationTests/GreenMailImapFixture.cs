@@ -67,9 +67,29 @@ public sealed class GreenMailImapFixture : IAsyncLifetime
     {
         using var http = new HttpClient { BaseAddress = new Uri($"http://{Host}:{ApiPort}") };
         var payload = $$"""{"email":"{{UserEmail}}","login":"{{UserEmail}}","password":"{{Password}}"}""";
-        using var content = new StringContent(payload, Encoding.UTF8, "application/json");
-        using var response = await http.PostAsync(new Uri("/api/user", UriKind.Relative), content);
-        response.EnsureSuccessStatusCode();
+        // The wait strategy releases on the "Starting GreenMail API server" log line, which is emitted
+        // BEFORE the management HTTP listener is actually serving. So the first POST can race readiness:
+        // the socket is accepted then the response is truncated (HttpIOException/ResponseEnded), or a
+        // transient non-2xx slips through EnsureSuccessStatusCode. Retry on a bounded budget (~10s) so
+        // the fixture is deterministic no matter how fast the container warms up.
+        HttpRequestException? last = null;
+        for (var attempt = 0; attempt < 40; attempt++)
+        {
+            try
+            {
+                using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                using var response = await http.PostAsync(new Uri("/api/user", UriKind.Relative), content);
+                response.EnsureSuccessStatusCode();
+                return;
+            }
+            catch (HttpRequestException ex)
+            {
+                last = ex;
+                await Task.Delay(250);
+            }
+        }
+        throw new InvalidOperationException(
+            "GreenMail management API did not become ready to seed the test user within ~10s.", last);
     }
 
     /// <summary>Deliver a message to the user via SMTP so it lands in INBOX.</summary>
