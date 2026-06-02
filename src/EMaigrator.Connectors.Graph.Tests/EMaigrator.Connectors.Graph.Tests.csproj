@@ -29,6 +29,8 @@
     <PackageReference Include="WireMock.Net" />
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <!-- [SkippableFact] for the gated live-smoke tests. -->
+    <PackageReference Include="Xunit.SkippableFact" />
   </ItemGroup>
 
 </Project>
