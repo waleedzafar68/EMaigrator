@@ -94,4 +94,13 @@
     <!-- Conditional [SkippableFact] for the gated M365 live-smoke tests (xUnit 2.9.3 has no dynamic skip). -->
     <PackageVersion Include="Xunit.SkippableFact" Version="1.5.23" />
   </ItemGroup>
+
+  <!-- Plan 06 (Connector: Gmail). Google.Apis.Gmail.v1 is the Gmail v1 SDK; Google.Apis.Auth supplies
+       GoogleCredential + service-account domain-wide-delegation. Both pull the Google.Apis(.Core) +
+       Newtonsoft.Json stack transitively (auto-pinned via CentralPackageTransitivePinningEnabled).
+       WireMock.Net (pinned above) mocks Gmail HTTP for offline fixtures. -->
+  <ItemGroup>
+    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.69.0.3742" />
+    <PackageVersion Include="Google.Apis.Auth" Version="1.69.0" />
+  </ItemGroup>
 </Project>

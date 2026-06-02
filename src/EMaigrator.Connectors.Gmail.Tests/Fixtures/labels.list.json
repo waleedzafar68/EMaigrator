@@ -1,0 +1,13 @@
+{
+  "labels": [
+    { "id": "INBOX", "name": "INBOX", "type": "system", "messagesTotal": 3 },
+    { "id": "SENT", "name": "SENT", "type": "system", "messagesTotal": 1 },
+    { "id": "UNREAD", "name": "UNREAD", "type": "system" },
+    { "id": "STARRED", "name": "STARRED", "type": "system" },
+    { "id": "CHAT", "name": "CHAT", "type": "system" },
+    { "id": "CATEGORY_PROMOTIONS", "name": "CATEGORY_PROMOTIONS", "type": "system" },
+    { "id": "Label_10", "name": "Work", "type": "user", "messageListVisibility": "show", "labelListVisibility": "labelShow" },
+    { "id": "Label_11", "name": "Work/Clients", "type": "user" },
+    { "id": "Label_12", "name": "Work/Clients/Acme", "type": "user", "messagesTotal": 2 }
+  ]
+}

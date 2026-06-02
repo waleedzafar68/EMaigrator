@@ -22,6 +22,17 @@
   <ItemGroup>
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
+    <!-- Gmail SDK + Google error/types used directly by tests (GoogleApiException, RequestError, GmailService). -->
+    <PackageReference Include="Google.Apis.Gmail.v1" />
+    <PackageReference Include="Google.Apis.Auth" />
+    <!-- Offline HTTP mock for Gmail; DI container for plugin/DI conformance tests. -->
+    <PackageReference Include="WireMock.Net" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Recorded Gmail-v1 JSON fixtures copied next to the test assembly for WireMock. -->
+    <None Update="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
