@@ -13,7 +13,12 @@ namespace EMaigrator.Cli.IntegrationTests;
 /// </summary>
 public static class CliProfiles
 {
-    public static string WriteImapToImap(string dir, int imapPort)
+    public static string WriteImapToImap(string dir, int imapPort) =>
+        WriteImapToImap(dir, imapPort, "source@greenmail.local", "dest@greenmail.local");
+
+    /// <summary>Writes the IMAP→IMAP profile for an EXPLICIT source/dest account pair, so each e2e test
+    /// class can run against its own dedicated GreenMail mailboxes (no cross-class destination contention).</summary>
+    public static string WriteImapToImap(string dir, int imapPort, string sourceUser, string destUser)
     {
         var path = Path.Combine(dir, "profile.json");
         var port = imapPort.ToString(CultureInfo.InvariantCulture);
@@ -23,12 +28,12 @@ public static class CliProfiles
           "storeSubjects": false,
           "from": { "provider": "imap", "auth": "ImapBasic",
             "settings": { "preset": "custom", "host": "127.0.0.1", "port": "{{port}}",
-                          "useSsl": "false", "allowPlaintext": "true", "accountEmail": "source@greenmail.local" } },
+                          "useSsl": "false", "allowPlaintext": "true", "accountEmail": "{{sourceUser}}" } },
           "to":   { "provider": "imap", "auth": "ImapBasic",
             "settings": { "preset": "custom", "host": "127.0.0.1", "port": "{{port}}",
-                          "useSsl": "false", "allowPlaintext": "true", "accountEmail": "dest@greenmail.local" } },
+                          "useSsl": "false", "allowPlaintext": "true", "accountEmail": "{{destUser}}" } },
           "scope": { "isBatch": false,
-            "pairs": [ { "sourceMailbox": "source@greenmail.local", "destMailbox": "dest@greenmail.local" } ] }
+            "pairs": [ { "sourceMailbox": "{{sourceUser}}", "destMailbox": "{{destUser}}" } ] }
         }
         """);
         return path;

@@ -102,6 +102,8 @@ public static class CommandRunner
         try
         {
             Guid id = parse.GetValue(idOpt);
+            if (resume)
+                await host.Services.GetRequiredService<IMigrationResetter>().ReopenAsync(id, ct);
             return (int)await RunCommand.ExecuteAsync(
                 id, host.Services.GetRequiredService<IJobOrchestrator>(),
                 host.Services.GetRequiredService<IMigrationStateReader>(),

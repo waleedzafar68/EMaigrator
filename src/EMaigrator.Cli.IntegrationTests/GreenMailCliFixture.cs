@@ -102,6 +102,22 @@ public sealed class GreenMailCliFixture : IAsyncLifetime
         SetEnv("EMAIGRATOR_SECRET_TO", DestPassword);
     }
 
+    /// <summary>
+    /// Provisions a DEDICATED source/dest mailbox pair (unique logins) on the shared GreenMail, both using
+    /// the global <see cref="SourcePassword"/>/<see cref="DestPassword"/> so they authenticate with the same
+    /// EMAIGRATOR_SECRET_FROM/_TO the fixture already set. Giving each e2e test class its own pair removes all
+    /// cross-class contention on the single shared GreenMail (no class can ever see another's destination mail,
+    /// and any late worker drain lands only in that class's own mailbox).
+    /// </summary>
+    public async Task<(string SourceUser, string DestUser)> CreateMailboxPairAsync(string label)
+    {
+        var src = $"{label}-src@greenmail.local";
+        var dst = $"{label}-dst@greenmail.local";
+        await SeedUserAsync(src, SourcePassword);
+        await SeedUserAsync(dst, DestPassword);
+        return (src, dst);
+    }
+
     public async Task DisposeAsync()
     {
         foreach (var key in _envKeys)
@@ -152,3 +168,16 @@ public sealed class GreenMailCliFixture : IAsyncLifetime
 [SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
     Justification = "xUnit collection-definition marker; the 'Collection' suffix is idiomatic for ICollectionFixture markers.")]
 public sealed class CliE2eCollection : ICollectionFixture<GreenMailCliFixture>;
+
+/// <summary>
+/// A SEPARATE cli-e2e collection (own fixture instance → own Postgres/Redis/RabbitMQ/GreenMail) for the
+/// resume-idempotency E2E. The default MassTransit endpoints are durable, shared-by-name queues, so a
+/// <c>MigrationProgressEvent</c> left on the broker by another class's run could be redelivered to this
+/// test's fresh in-process worker and complete the re-run prematurely (before its new items are seeded),
+/// flaking the +5 step. An isolated broker removes that cross-class messaging contamination; cross-collection
+/// parallelism is disabled (xunit.runner.json) so the two fixtures never clobber each other's process env.
+/// </summary>
+[CollectionDefinition("cli-e2e-resume")]
+[SuppressMessage("Naming", "CA1711:Identifiers should not have incorrect suffix",
+    Justification = "xUnit collection-definition marker; the 'Collection' suffix is idiomatic for ICollectionFixture markers.")]
+public sealed class CliE2eResumeCollection : ICollectionFixture<GreenMailCliFixture>;

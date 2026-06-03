@@ -50,6 +50,7 @@ public static class CliHostBuilder
         // Singleton: they only consume the singleton IDbContextFactory and are root-resolved by CommandRunner.
         builder.Services.AddSingleton<Commands.IMigrationFactory, Hosting.EfMigrationFactory>();
         builder.Services.AddSingleton<Commands.IMigrationStateReader, Hosting.EfMigrationStateReader>();
+        builder.Services.AddSingleton<Commands.IMigrationResetter, Hosting.EfMigrationResetter>();
 
         // Apply EF migrations at host start so the ledger schema exists before any command runs.
         builder.Services.AddHostedService<Hosting.SchemaMigratorHostedService>();

@@ -25,13 +25,15 @@ namespace EMaigrator.Cli.IntegrationTests;
 /// orchestration), so this test sets none of them.
 /// </summary>
 [Collection("cli-e2e")]
-public sealed class FullCliFlowAcceptanceTests : IDisposable
+public sealed class FullCliFlowAcceptanceTests : IAsyncLifetime, IDisposable
 {
     private const int SeedCount = 20;
 
     private readonly GreenMailCliFixture _fx;
     private readonly ITestOutputHelper _log;
     private readonly string _dir;
+    private string _sourceUser = "";
+    private string _destUser = "";
 
     public FullCliFlowAcceptanceTests(GreenMailCliFixture fx, ITestOutputHelper log)
     {
@@ -39,6 +41,12 @@ public sealed class FullCliFlowAcceptanceTests : IDisposable
         _log = log;
         _dir = Directory.CreateTempSubdirectory("emaigrator-cli-flow").FullName;
     }
+
+    // Dedicated mailbox pair per class → the shared single GreenMail cannot leak another class's mail.
+    public async Task InitializeAsync() =>
+        (_sourceUser, _destUser) = await _fx.CreateMailboxPairAsync("flow");
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     public void Dispose()
     {
@@ -51,14 +59,14 @@ public sealed class FullCliFlowAcceptanceTests : IDisposable
     {
         using var client = new ImapClient();
         await client.ConnectAsync("127.0.0.1", _fx.ImapPort, SecureSocketOptions.None);
-        await client.AuthenticateAsync(GreenMailCliFixture.SourceUser, GreenMailCliFixture.SourcePassword);
+        await client.AuthenticateAsync(_sourceUser, GreenMailCliFixture.SourcePassword);
         var inbox = client.Inbox!;
         await inbox.OpenAsync(FolderAccess.ReadWrite);
         for (var i = 0; i < SeedCount; i++)
         {
             var msg = new MimeMessage();
             msg.From.Add(new MailboxAddress("Sender", "sender@x.com"));
-            msg.To.Add(new MailboxAddress("Dest", GreenMailCliFixture.DestUser));
+            msg.To.Add(new MailboxAddress("Dest", _destUser));
             msg.Subject = $"Flow {i}";
             msg.MessageId = $"<flow-{i}@greenmail.local>";
             msg.Body = new TextPart("plain") { Text = $"Body {i}" };
@@ -66,19 +74,15 @@ public sealed class FullCliFlowAcceptanceTests : IDisposable
         }
 
         await client.DisconnectAsync(true);
+
+        // Ensure all seeded messages are visible to a fresh IMAP session before any preflight/run lists them.
+        await CliMailbox.WaitUntilCountAtLeastAsync(
+            _fx.ImapPort, _sourceUser, GreenMailCliFixture.SourcePassword, SeedCount, TimeSpan.FromSeconds(30));
     }
 
-    private async Task<int> CountDestAsync()
-    {
-        using var client = new ImapClient();
-        await client.ConnectAsync("127.0.0.1", _fx.ImapPort, SecureSocketOptions.None);
-        await client.AuthenticateAsync(GreenMailCliFixture.DestUser, GreenMailCliFixture.DestPassword);
-        var inbox = client.Inbox!;
-        await inbox.OpenAsync(FolderAccess.ReadOnly);
-        var count = inbox.Count;
-        await client.DisconnectAsync(true);
-        return count;
-    }
+    private Task<int> WaitDestAsync(int expected) =>
+        CliMailbox.WaitUntilCountAsync(
+            _fx.ImapPort, _destUser, GreenMailCliFixture.DestPassword, expected, TimeSpan.FromSeconds(60));
 
     private static async Task<(int exit, string output)> InvokeCliAsync(string[] args)
     {
@@ -132,7 +136,7 @@ public sealed class FullCliFlowAcceptanceTests : IDisposable
         ProfileLoader.Load(profile).Ok.Should().BeTrue("the scaffolded profile must round-trip through ProfileLoader");
 
         // 2. Rewrite the profile for GreenMail (the §D.2 IMAP→IMAP shape) — do NOT rely on the example hosts.
-        profile = CliProfiles.WriteImapToImap(_dir, _fx.ImapPort);
+        profile = CliProfiles.WriteImapToImap(_dir, _fx.ImapPort, _sourceUser, _destUser);
 
         // 3. connect test --side from — exercises the §A secret fix against the REAL IMAP connector.
         var (fromExit, fromOut) = await InvokeCliAsync(["connect", "test", "--side", "from", "--profile", profile, "--json"]);
@@ -157,8 +161,8 @@ public sealed class FullCliFlowAcceptanceTests : IDisposable
         string id = ExtractId(runOut);
         _log.WriteLine($"mailboxMigrationId = {id}");
 
-        // 7. Destination mailbox holds all 20 migrated messages.
-        (await CountDestAsync()).Should().Be(SeedCount);
+        // 7. Destination mailbox settles at all 20 migrated messages.
+        (await WaitDestAsync(SeedCount)).Should().Be(SeedCount);
 
         // 8. status --id … --json — terminal counts: migrated == 20, failed == 0.
         var (statusExit, statusOut) = await InvokeCliAsync(["status", "--id", id, "--profile", profile, "--json"]);

@@ -19,12 +19,14 @@ namespace EMaigrator.Cli.IntegrationTests;
 /// (CliHostBuilder) + in-process worker against live Postgres/RabbitMQ/Redis containers.
 /// </summary>
 [Collection("cli-e2e")]
-public sealed class PreflightRunE2ETests
+public sealed class PreflightRunE2ETests : IAsyncLifetime
 {
     private const int SeedCount = 20;
 
     private readonly GreenMailCliFixture _fx;
     private readonly ITestOutputHelper _log;
+    private string _sourceUser = "";
+    private string _destUser = "";
 
     public PreflightRunE2ETests(GreenMailCliFixture fx, ITestOutputHelper log)
     {
@@ -32,18 +34,24 @@ public sealed class PreflightRunE2ETests
         _log = log;
     }
 
+    // Dedicated mailbox pair per class → the shared single GreenMail cannot leak another class's mail.
+    public async Task InitializeAsync() =>
+        (_sourceUser, _destUser) = await _fx.CreateMailboxPairAsync("preflight");
+
+    public Task DisposeAsync() => Task.CompletedTask;
+
     private async Task SeedSourceAsync()
     {
         using var client = new ImapClient();
         await client.ConnectAsync("127.0.0.1", _fx.ImapPort, SecureSocketOptions.None);
-        await client.AuthenticateAsync(GreenMailCliFixture.SourceUser, GreenMailCliFixture.SourcePassword);
+        await client.AuthenticateAsync(_sourceUser, GreenMailCliFixture.SourcePassword);
         var inbox = client.Inbox!;
         await inbox.OpenAsync(FolderAccess.ReadWrite);
         for (var i = 0; i < SeedCount; i++)
         {
             var msg = new MimeMessage();
             msg.From.Add(new MailboxAddress("Sender", "sender@x.com"));
-            msg.To.Add(new MailboxAddress("Dest", GreenMailCliFixture.DestUser));
+            msg.To.Add(new MailboxAddress("Dest", _destUser));
             msg.Subject = $"Seed {i}";
             msg.MessageId = $"<seed-{i}@greenmail.local>";
             msg.Body = new TextPart("plain") { Text = $"Body {i}" };
@@ -51,19 +59,15 @@ public sealed class PreflightRunE2ETests
         }
 
         await client.DisconnectAsync(true);
+
+        // Ensure all seeded messages are visible to a fresh IMAP session before any preflight/run lists them.
+        await CliMailbox.WaitUntilCountAtLeastAsync(
+            _fx.ImapPort, _sourceUser, GreenMailCliFixture.SourcePassword, SeedCount, TimeSpan.FromSeconds(30));
     }
 
-    private async Task<int> CountDestAsync()
-    {
-        using var client = new ImapClient();
-        await client.ConnectAsync("127.0.0.1", _fx.ImapPort, SecureSocketOptions.None);
-        await client.AuthenticateAsync(GreenMailCliFixture.DestUser, GreenMailCliFixture.DestPassword);
-        var inbox = client.Inbox!;
-        await inbox.OpenAsync(FolderAccess.ReadOnly);
-        var count = inbox.Count;
-        await client.DisconnectAsync(true);
-        return count;
-    }
+    private Task<int> WaitDestAsync(int expected) =>
+        CliMailbox.WaitUntilCountAsync(
+            _fx.ImapPort, _destUser, GreenMailCliFixture.DestPassword, expected, TimeSpan.FromSeconds(60));
 
     private static async Task<(int exit, string output)> InvokeCliAsync(string[] args)
     {
@@ -88,7 +92,7 @@ public sealed class PreflightRunE2ETests
     {
         await SeedSourceAsync();
         var dir = Directory.CreateTempSubdirectory("emaigrator-cli-e2e").FullName;
-        var profile = CliProfiles.WriteImapToImap(dir, _fx.ImapPort);
+        var profile = CliProfiles.WriteImapToImap(dir, _fx.ImapPort, _sourceUser, _destUser);
 
         try
         {
@@ -104,8 +108,8 @@ public sealed class PreflightRunE2ETests
             _log.WriteLine($"--- run (exit {runExit}) ---\n{runOut}");
             runExit.Should().Be((int)CliExitCode.Success, "run should reach Completed; output:\n{0}", runOut);
 
-            // 3. The destination mailbox must hold all 20 migrated messages.
-            (await CountDestAsync()).Should().Be(SeedCount);
+            // 3. The destination mailbox must settle at all 20 migrated messages.
+            (await WaitDestAsync(SeedCount)).Should().Be(SeedCount);
 
             // 4. Security: no plaintext password ever appears in CLI output.
             (preOut + runOut).Should().NotContain(GreenMailCliFixture.SourcePassword)

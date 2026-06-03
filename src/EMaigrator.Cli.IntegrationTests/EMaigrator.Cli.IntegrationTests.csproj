@@ -16,6 +16,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Disable cross-collection parallelism (see xunit.runner.json) so each collection's GreenMail/Redis/
+         RabbitMQ/Postgres fixture runs without clobbering the others' process-wide EMAIGRATOR_* env vars. -->
+    <None Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\EMaigrator.Cli\EMaigrator.Cli.csproj" />
   </ItemGroup>
 
