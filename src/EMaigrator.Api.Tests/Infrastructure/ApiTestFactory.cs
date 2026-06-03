@@ -54,6 +54,11 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
             // InlineTaskQueue replaces the production BackgroundTaskQueue for IBackgroundTaskQueue so the
             // POST /preflight call completes the analysis synchronously before the test issues the GET.
             FakePreflightExtensions.AddFakePreflight(services);
+
+            // Task 8: replace the MassTransit-backed IJobOrchestrator (scoped, from AddInfrastructure) with
+            // a singleton RecordingOrchestrator so the approve/control endpoints' calls are observable from
+            // the root provider (_factory.Services) in the run-control tests.
+            RecordingOrchestratorExtensions.AddRecordingOrchestrator(services);
         });
 
         return base.CreateHost(builder);

@@ -19,9 +19,16 @@ public sealed class ApiSideContext : DbContext
 
     public DbSet<PreflightResultRow> PreflightResults => Set<PreflightResultRow>();
 
+    public DbSet<ApprovedResolutionRow> ApprovedResolutions => Set<ApprovedResolutionRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
         modelBuilder.Entity<PreflightResultRow>().HasKey(r => r.JobId);
+        modelBuilder.Entity<ApprovedResolutionRow>(b =>
+        {
+            b.HasKey(r => r.Id);
+            b.Property(r => r.Id).UseIdentityByDefaultColumn();
+        });
     }
 }
