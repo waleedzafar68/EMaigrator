@@ -42,6 +42,7 @@ var v1 = app.MapGroup("/api/v1");
 v1.MapAuthEndpoints();
 v1.MapMigrationEndpoints();
 v1.MapConnectionEndpoints();
+v1.MapScopeEndpoints();
 
 app.Run();
 
