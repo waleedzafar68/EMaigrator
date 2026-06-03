@@ -45,41 +45,9 @@ public sealed class TestConnectionLookup : IMigrationConnectionLookup
     }
 }
 
-/// <summary>Refs ARE identity keys: enumerate the source folder and yield each message's IdentityKey.</summary>
-public sealed class ImapMessageRefLister : IMessageRefLister
-{
-    public async IAsyncEnumerable<string> ListRefsAsync(
-        ISourceProvider source, FolderPath folder, [EnumeratorCancellation] CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        await foreach (var m in source.ReadMessagesAsync(folder, new ReadOptions(), ct).ConfigureAwait(false))
-        {
-            yield return m.IdentityKey;
-        }
-    }
-}
-
-/// <summary>Re-enumerate the folder and materialize the single message whose IdentityKey == reference.</summary>
-public sealed class ImapMessageHydrator : IMessageHydrator
-{
-    public async Task<CanonicalMessage> HydrateAsync(
-        ISourceProvider source, FolderPath folder, string reference, CancellationToken ct)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        await foreach (var m in source.ReadMessagesAsync(folder, new ReadOptions(), ct).ConfigureAwait(false))
-        {
-            if (string.Equals(m.IdentityKey, reference, StringComparison.Ordinal))
-            {
-                return m;
-            }
-        }
-
-        throw new InvalidOperationException($"No message with identity '{reference}' in folder '{folder}'.");
-    }
-}
-
 /// <summary>
-/// Wraps the real <see cref="ImapMessageHydrator"/>. When poison mode is on, any message whose
+/// Wraps the real <see cref="ImapMessageHydrator"/> (production, EMaigrator.Workers.Sessions).
+/// When poison mode is on, any message whose
 /// subject carries the <see cref="PoisonMarker"/> throws AFTER hydration — standing in for the
 /// "oversize / unconvertible" long-tail that must DLQ rather than wedge the folder.
 /// </summary>
