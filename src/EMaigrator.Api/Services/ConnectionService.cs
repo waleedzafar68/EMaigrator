@@ -129,20 +129,25 @@ public sealed class ConnectionService : IConnectionService
         }
 
         var descriptor = JsonSerializer.Deserialize<ConnectionDescriptor>(raw)!;
-        var plugin = _plugins.FirstOrDefault(p => p.Id.Value == descriptor.Provider.Value)
-            ?? throw new InvalidOperationException(
-                FormattableString.Invariant($"No plugin for provider {descriptor.Provider.Value}."));
-
-        var secretValues = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrEmpty(descriptor.SecretRef))
-        {
-            secretValues["secret"] = await _secrets.RetrieveAsync(descriptor.SecretRef, ct);
-        }
-
-        var bundle = new SecretBundle(secretValues);
 
         try
         {
+            // Resolve the plugin inside the try so a missing plugin degrades to a safe,
+            // credential-free result instead of escaping as a 500.
+            var plugin = _plugins.FirstOrDefault(p => p.Id.Value == descriptor.Provider.Value);
+            if (plugin is null)
+            {
+                return new ConnectionTestResult(false, 0, 0, "PLUGIN_NOT_FOUND", "Provider plugin not available.");
+            }
+
+            var secretValues = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (!string.IsNullOrEmpty(descriptor.SecretRef))
+            {
+                secretValues["secret"] = await _secrets.RetrieveAsync(descriptor.SecretRef, ct);
+            }
+
+            var bundle = new SecretBundle(secretValues);
+
             if (side == "from")
             {
                 await using var src = plugin.CreateSource(descriptor, bundle);
@@ -165,6 +170,7 @@ public sealed class ConnectionService : IConnectionService
         }
     }
 
+    // Maps a connector failure signature of the form "<provider>:<CONDITION>" to a stable client-facing code.
     private static string ToStableCode(ProviderId provider, string signature)
     {
         var condition = signature.Contains(':', StringComparison.Ordinal)
