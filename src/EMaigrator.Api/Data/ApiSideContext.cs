@@ -21,6 +21,8 @@ public sealed class ApiSideContext : DbContext
 
     public DbSet<ApprovedResolutionRow> ApprovedResolutions => Set<ApprovedResolutionRow>();
 
+    public DbSet<NotificationSentRow> NotificationsSent => Set<NotificationSentRow>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
@@ -30,5 +32,6 @@ public sealed class ApiSideContext : DbContext
             b.HasKey(r => r.Id);
             b.Property(r => r.Id).UseIdentityByDefaultColumn();
         });
+        modelBuilder.Entity<NotificationSentRow>().HasKey(r => r.MailboxMigrationId);
     }
 }

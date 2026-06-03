@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using EMaigrator.Api.Data;
 using EMaigrator.Api.Identity;
+using EMaigrator.Api.Notifications;
 using EMaigrator.Api.Realtime;
 using EMaigrator.Api.Services;
 using EMaigrator.Api.Tenancy;
@@ -49,6 +50,10 @@ public static class ApiServiceCollectionExtensions
         services.AddMassTransit(x =>
         {
             x.AddConsumer<MigrationProgressBridge>();
+            // Task 11: the terminal-state email notifier consumes the same MigrationProgressEvent on its
+            // OWN receive endpoint (ConfigureEndpoints gives each consumer one), so both fire independently
+            // — the bridge fans out over SignalR, the notifier sends one idempotent email on terminal states.
+            x.AddConsumer<TerminalStateNotifier>();
             x.UsingRabbitMq((ctx, cfg) =>
             {
                 cfg.Host(new Uri(config["Infrastructure:RabbitMqConnectionString"] ?? ""));
@@ -196,6 +201,15 @@ public static class ApiServiceCollectionExtensions
         // both are stateless (the PDF builder's QuestPDF Community license is set once in its static ctor).
         services.AddSingleton<EMaigrator.Api.Reporting.IReportBuilder, EMaigrator.Api.Reporting.CsvReportBuilder>();
         services.AddSingleton<EMaigrator.Api.Reporting.IReportBuilder, EMaigrator.Api.Reporting.PdfReportBuilder>();
+
+        // Task 11: terminal-state email notifications. The TerminalStateNotifier consumer (registered on
+        // the bus above) resolves the owning user's email + endpoint labels via the unfiltered
+        // EmaigratorDbContext + UserManager, gates duplicate/concurrent terminal events with a sent-flag
+        // row in ApiSideContext, and renders a credential-free template. The OSS default sender just logs;
+        // hosted deployments swap in an SMTP/provider-backed IAppEmailSender.
+        services.AddScoped<ISentGuard, DbSentGuard>();
+        services.AddScoped<INotificationRecipientResolver, DbNotificationRecipientResolver>();
+        services.AddSingleton<IAppEmailSender, LoggingEmailSender>();
 
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();
