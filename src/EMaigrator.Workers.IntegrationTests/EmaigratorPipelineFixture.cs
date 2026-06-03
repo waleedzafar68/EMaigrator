@@ -15,6 +15,7 @@ using EMaigrator.Core.Configuration;
 using EMaigrator.Core.Model;
 using EMaigrator.Infrastructure;
 using EMaigrator.Infrastructure.Data;
+using EMaigrator.Infrastructure.RateLimiting;
 using EMaigrator.Workers;
 using EMaigrator.Workers.Consumers;
 using EMaigrator.Workers.Control;
@@ -31,7 +32,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using MimeKit;
+using StackExchange.Redis;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
@@ -111,6 +114,11 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        if (_redisMux is not null)
+        {
+            await _redisMux.DisposeAsync();
+        }
+
         await _greenMail.DisposeAsync();
         await Task.WhenAll(
             _postgres.DisposeAsync().AsTask(),
@@ -263,7 +271,11 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
     }
 
     /// <summary>APPEND a message into the given account's folder (creating the folder if needed).</summary>
-    public async Task AppendAsync(string account, string folderName, string subject, string messageId)
+    public Task AppendAsync(string account, string folderName, string subject, string messageId)
+        => AppendAsync(account, folderName, subject, messageId, "body of " + subject);
+
+    /// <summary>APPEND a message with an explicit body (used by the security gate to embed a body sentinel).</summary>
+    public async Task AppendAsync(string account, string folderName, string subject, string messageId, string body)
     {
         using var client = new ImapClient();
         await client.ConnectAsync(Host, ImapPort, SecureSocketOptions.None);
@@ -281,7 +293,7 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
         msg.To.Add(new MailboxAddress("Recipient", account));
         msg.Subject = subject;
         msg.MessageId = messageId;
-        msg.Body = new TextPart("plain") { Text = "body of " + subject };
+        msg.Body = new TextPart("plain") { Text = body };
 
         await folder.OpenAsync(FolderAccess.ReadWrite);
         await folder.AppendAsync(new AppendRequest(msg, MailKit.MessageFlags.Seen, DateTimeOffset.UtcNow));
@@ -343,6 +355,82 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
         await client.DisconnectAsync(true);
         return ids;
     }
+
+    // ── Security gate (Task 13) ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Resets both mailboxes, then seeds <paramref name="count"/> messages into one fresh per-run
+    /// folder whose BODIES each contain <paramref name="sentinel"/>. Returns the seeded Message-IDs
+    /// (without angle brackets) so the test can wait for the destination to receive them.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> SeedSourceWithBodySentinelAsync(int count, string sentinel)
+    {
+        await ResetMailboxAsync(SrcEmail);
+        await ResetMailboxAsync(DstEmail);
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var folder = $"Mail-Sec-{token}";
+        var ids = new List<string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var mid = $"<sec-{token}-{i}@local.test>";
+            ids.Add(mid.Trim('<', '>'));
+            // The sentinel lives ONLY in the body; the subject is generic. If any byte of the body
+            // were persisted, the raw Postgres / disk scan would find the sentinel.
+            await AppendAsync(SrcEmail, folder, $"sec-{token}-{i}",
+                mid, $"line1 {sentinel} line2 — secret body content for {mid}");
+        }
+
+        return ids;
+    }
+
+    /// <summary>
+    /// Resets both mailboxes, then seeds <paramref name="count"/>-1 healthy messages plus ONE poison
+    /// message whose SUBJECT is "<paramref name="subjectSentinel"/> EMAIGRATOR_POISON" (so the
+    /// FaultInjectingMessageHydrator throws → DLQ) and whose BODY contains
+    /// <paramref name="bodySentinel"/>. Returns (healthyIds, poisonMessageId).
+    /// </summary>
+    public async Task<(IReadOnlyList<string> HealthyIds, string PoisonId)> SeedSourceWithOnePoisonSentinelAsync(
+        int count, long _maxBytesIgnored, string bodySentinel, string subjectSentinel)
+    {
+        await ResetMailboxAsync(SrcEmail);
+        await ResetMailboxAsync(DstEmail);
+        var token = Guid.NewGuid().ToString("N")[..8];
+        var folder = $"Mail-SecP-{token}";
+        var healthy = new List<string>(Math.Max(0, count - 1));
+        for (var i = 0; i < count - 1; i++)
+        {
+            var mid = $"<secp-{token}-{i}@local.test>";
+            healthy.Add(mid.Trim('<', '>'));
+            await AppendAsync(SrcEmail, folder, $"ok-{token}-{i}", mid);
+        }
+
+        var poisonMid = $"<secp-poison-{token}@local.test>";
+        var poisonSubject = $"{subjectSentinel} {FaultInjectingMessageHydrator.PoisonMarker}";
+        await AppendAsync(SrcEmail, folder, poisonSubject,
+            poisonMid, $"poison body — {bodySentinel} — do not persist this");
+        return (healthy, poisonMid.Trim('<', '>'));
+    }
+
+    /// <summary>
+    /// Builds a REAL <see cref="RedisRateLimiter"/> bound to the fixture's live Redis, configured with
+    /// a single bucket "graph:dest@biz.com" = <paramref name="spec"/>. Used to prove the limiter caps
+    /// grants under concurrency.
+    /// </summary>
+    public RedisRateLimiter CreateRateLimiter(BucketSpec spec)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        var options = new RateLimitOptions
+        {
+            Buckets = new Dictionary<string, BucketSpec> { ["graph:dest@biz.com"] = spec },
+        };
+        return new RedisRateLimiter(RedisMultiplexer, Options.Create(options));
+    }
+
+    /// <summary>Live Redis multiplexer pointed at the fixture's container (lazily connected once).</summary>
+    public IConnectionMultiplexer RedisMultiplexer =>
+        _redisMux ??= ConnectionMultiplexer.Connect(RedisConnectionString);
+
+    private ConnectionMultiplexer? _redisMux;
 
     private static async Task<int> CountFolderRecursiveAsync(IMailFolder folder)
     {
