@@ -64,12 +64,14 @@ public static class MigrationMapper
                 $"{mailboxes.Count} mailboxes");
         }
 
+        // A non-batch job normally has exactly one mailbox; collapse it to its source→dest pair.
         if (mailboxes.Count == 1)
         {
             var first = mailboxes.First();
             return $"{first.SourceMailbox} → {first.DestMailbox}";
         }
 
-        return "1 mailbox";
+        // Defensive fallback for the (unexpected) non-batch, count≠1 case — report the honest count.
+        return string.Create(CultureInfo.InvariantCulture, $"{mailboxes.Count} mailboxes");
     }
 }

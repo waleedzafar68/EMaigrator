@@ -93,12 +93,17 @@ public static class MigrationEndpoints
                 .ToList();
         }
 
-        var result = new List<MigrationDto>(jobs.Count);
-        foreach (var job in jobs)
-        {
-            var mailboxes = await LoadMailboxesAsync(db, job.Id);
-            result.Add(MigrationMapper.ToDto(job, mailboxes));
-        }
+        // Batch-load every mailbox for the page in ONE query, then group in memory — avoids the N+1 of
+        // a per-job query. Tenant-safe: MailboxMigration has no tenant filter, but jobIds come from the
+        // already tenant-filtered Jobs query above, so only the caller's mailboxes are ever loaded.
+        var jobIds = jobs.Select(j => j.Id).ToList();
+        var mailboxesByJob = (await db.MailboxMigrations.AsNoTracking()
+                .Where(m => jobIds.Contains(m.JobId)).ToListAsync())
+            .GroupBy(m => m.JobId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyCollection<MailboxMigration>)g.ToList());
+        var result = jobs
+            .Select(j => MigrationMapper.ToDto(j, mailboxesByJob.GetValueOrDefault(j.Id, Array.Empty<MailboxMigration>())))
+            .ToList();
 
         return Results.Ok(result);
     }
@@ -109,6 +114,7 @@ public static class MigrationEndpoints
     {
         ArgumentNullException.ThrowIfNull(db);
 
+        // The global query filter confines this lookup to the caller's tenant → cross-tenant ids return null (404).
         var job = await db.Jobs.AsNoTracking().FirstOrDefaultAsync(j => j.Id == id);
         if (job is null)
         {
@@ -125,6 +131,7 @@ public static class MigrationEndpoints
     {
         ArgumentNullException.ThrowIfNull(db);
 
+        // The global query filter confines this lookup to the caller's tenant → cross-tenant ids return null (404).
         var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
         if (job is null)
         {
@@ -160,6 +167,7 @@ public static class MigrationEndpoints
             return Results.ValidationProblem(ToErrorDictionary(validationResults));
         }
 
+        // The global query filter confines this lookup to the caller's tenant → cross-tenant ids return null (404).
         var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
         if (job is null)
         {
