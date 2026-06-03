@@ -1,6 +1,9 @@
 using System;
+using EMaigrator.Api.Tenancy;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 
 namespace EMaigrator.Api.Tests.Infrastructure;
@@ -32,6 +35,12 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
         // appsettings.json placeholders and ahead of AddInfrastructure's health-check snapshot.
         builder.ConfigureHostConfiguration(config =>
             config.AddInMemoryCollection(_fixture.ConfigurationValues()));
+
+        // Override the per-request ICurrentTenant with a test accessor whose tenant can be set
+        // explicitly for direct-DbContext seeding scopes (and which still reads the tenant_id claim
+        // for real HTTP requests). Scoped so each request/seeding scope gets its own instance.
+        builder.ConfigureServices(services =>
+            services.Replace(ServiceDescriptor.Scoped<ICurrentTenant, TestCurrentTenant>()));
 
         return base.CreateHost(builder);
     }

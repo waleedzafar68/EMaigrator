@@ -8,6 +8,11 @@ public class EmaigratorDbContext : DbContext
     {
     }
 
+    // Tenant scope for the global query filter. Guid.Empty (the default) disables the filter,
+    // so factory-created contexts (Workers/Infra/SecretStore) remain unfiltered. The API sets this
+    // per request from the authenticated tenant. See Plan 08 Task 2.
+    public Guid CurrentTenantId { get; set; } = Guid.Empty;
+
     public DbSet<Job> Jobs => Set<Job>();
     public DbSet<MailboxMigration> MailboxMigrations => Set<MailboxMigration>();
     public DbSet<FolderTask> FolderTasks => Set<FolderTask>();
@@ -28,6 +33,9 @@ public class EmaigratorDbContext : DbContext
             e.Property(x => x.DestProvider).HasConversion(providerIdConverter).HasColumnType("text");
             e.Property(x => x.Status).HasConversion<string>();
             e.HasIndex(x => x.TenantId);
+            // Sentinel tenant filter: Guid.Empty (factory default) leaves reads unfiltered; the API
+            // sets CurrentTenantId per request so tenant-scoped reads stay within the caller's tenant.
+            e.HasQueryFilter(x => CurrentTenantId == Guid.Empty || x.TenantId == CurrentTenantId);
         });
 
         modelBuilder.Entity<MailboxMigration>(e =>
@@ -69,6 +77,9 @@ public class EmaigratorDbContext : DbContext
             e.HasKey(x => x.Id);
             e.HasIndex(x => x.SecretRef).IsUnique();
             e.HasIndex(x => x.TenantId);
+            // Sentinel tenant filter (see Job above): Guid.Empty default leaves factory contexts
+            // unfiltered; the API scopes reads to the caller's tenant per request.
+            e.HasQueryFilter(x => CurrentTenantId == Guid.Empty || x.TenantId == CurrentTenantId);
         });
 
         modelBuilder.Entity<Tenant>(e =>

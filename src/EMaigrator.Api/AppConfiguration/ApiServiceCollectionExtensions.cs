@@ -1,11 +1,18 @@
 using System;
+using System.Text;
+using System.Threading.Tasks;
 using EMaigrator.Api.Identity;
+using EMaigrator.Api.Tenancy;
 using EMaigrator.Infrastructure;
+using EMaigrator.Infrastructure.Data;
 using MassTransit;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
 
 namespace EMaigrator.Api.AppConfiguration;
 
@@ -43,13 +50,69 @@ public static class ApiServiceCollectionExtensions
             o.UseNpgsql(config["Infrastructure:PostgresConnectionString"],
                 npg => npg.MigrationsHistoryTable("__EFMigrationsHistory_Identity")));
 
-        // The authentication core (scheme provider + handler infrastructure). No schemes or middleware
-        // are wired yet — Task 2 adds the JWT/cookie schemes and the auth/authorization middleware.
-        // Registered here so SignInManager (below) can resolve IAuthenticationSchemeProvider.
-        services.AddAuthentication();
+        // JWT-bearer authentication. The access token is read from the Authorization header, or — for
+        // browser clients — from the HttpOnly "emaigrator.auth" cookie, or (for SignalR's WebSocket
+        // handshake under /hubs) from the access_token query string. This scheme also satisfies
+        // SignInManager's IAuthenticationSchemeProvider requirement, so no bare AddAuthentication() call
+        // is needed. The default authorization policy below requires an authenticated user; only
+        // endpoints that opt into .AllowAnonymous() (register/login, /health) stay open.
+        var jwt = config.GetSection("Jwt").Get<JwtOptions>()!;
+        services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidIssuer = jwt.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = jwt.Audience,
+                    ValidateIssuerSigningKey = true,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
+                    ValidateLifetime = true,
+                    ClockSkew = TimeSpan.FromSeconds(30),
+                };
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = ctx =>
+                    {
+                        if (string.IsNullOrEmpty(ctx.Token) &&
+                            ctx.Request.Cookies.TryGetValue("emaigrator.auth", out var cookieToken))
+                        {
+                            ctx.Token = cookieToken;
+                        }
 
-        // IdentityCore (no cookie auth scheme yet — that arrives in Task 2). 12-char minimum password,
-        // unique email, and a 5-attempt / 15-minute lockout backing the login endpoint.
+                        var access = ctx.Request.Query["access_token"];
+                        if (string.IsNullOrEmpty(ctx.Token) && !string.IsNullOrEmpty(access) &&
+                            ctx.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                        {
+                            ctx.Token = access;
+                        }
+
+                        return Task.CompletedTask;
+                    },
+                };
+            });
+        services.AddAuthorization(o =>
+            o.FallbackPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+
+        // Tenancy: the per-request tenant accessor (read from the tenant_id claim) and a scoped
+        // EmaigratorDbContext that reuses the engine's IDbContextFactory but sets the sentinel
+        // CurrentTenantId from ICurrentTenant at creation, confining tenant-scoped reads to the caller.
+        // Guid.Empty (the unauthenticated default) disables the filter, matching factory-created
+        // contexts used by Workers/Infra/SecretStore. The DI container disposes the scoped context.
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentTenant, HttpContextCurrentTenant>();
+        services.AddScoped<EmaigratorDbContext>(sp =>
+        {
+            var factory = sp.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
+            var tenant = sp.GetRequiredService<ICurrentTenant>();
+            var ctx = factory.CreateDbContext();
+            ctx.CurrentTenantId = tenant.IsAuthenticated ? tenant.TenantId : Guid.Empty;
+            return ctx;
+        });
+
+        // IdentityCore for password hashing + the user store. 12-char minimum password, unique email,
+        // and a 5-attempt / 15-minute lockout backing the login endpoint.
         services.AddIdentityCore<ApplicationUser>(o =>
             {
                 o.Password.RequiredLength = 12;

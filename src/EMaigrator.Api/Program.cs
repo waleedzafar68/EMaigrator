@@ -10,6 +10,12 @@ builder.Services.AddEMaigratorApi(builder.Configuration);
 
 var app = builder.Build();
 
+// Authentication + authorization run before endpoint mapping so the default fallback policy
+// (RequireAuthenticatedUser) protects every endpoint that does not opt into .AllowAnonymous()
+// (the auth endpoints and /health stay anonymous).
+app.UseAuthentication();
+app.UseAuthorization();
+
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
