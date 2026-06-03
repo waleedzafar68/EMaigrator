@@ -9,6 +9,7 @@ using EMaigrator.Core.Diagnostics;
 using EMaigrator.Core.Model;
 using EMaigrator.Workers.Consumers;
 using EMaigrator.Workers.Control;
+using EMaigrator.Workers.Persistence;
 using EMaigrator.Workers.Remediation;
 using EMaigrator.Workers.Sessions;
 using FluentAssertions;
@@ -38,6 +39,14 @@ public sealed class StartMigrationConsumerTests
         return (src, dst);
     }
 
+    // A lister that yields one ref per folder, so seeding produces work (totalSeeded > 0) and the
+    // consumer takes the normal fan-out path rather than the empty-mailbox terminal path.
+    private static async IAsyncEnumerable<string> OneRef()
+    {
+        yield return "r1";
+        await Task.CompletedTask;
+    }
+
     [Fact]
     public async Task Publishes_one_MigrateFolder_per_folder_with_flatten_applied()
     {
@@ -61,8 +70,15 @@ public sealed class StartMigrationConsumerTests
             new ConnectionDescriptor { Provider = new("imap"), Auth = AuthMethod.ImapBasic, Settings = new Dictionary<string, string>() },
             new ConnectionDescriptor { Provider = new("graph"), Auth = AuthMethod.GraphAppOAuth, Settings = new Dictionary<string, string>() }));
 
+        var lister = Substitute.For<IMessageRefLister>();
+        lister.ListRefsAsync(Arg.Any<ISourceProvider>(), Arg.Any<FolderPath>(), Arg.Any<CancellationToken>())
+            .Returns(_ => OneRef());
+        var ledger = Substitute.For<ILedger>();
+        var status = Substitute.For<IMigrationStatusWriter>();
+
         await using var provider = new ServiceCollection()
             .AddSingleton(sessions).AddSingleton(plan).AddSingleton(gate).AddSingleton(lookup)
+            .AddSingleton(lister).AddSingleton(ledger).AddSingleton(status)
             .AddMassTransitTestHarness(x => x.AddConsumer<StartMigrationConsumer>())
             .BuildServiceProvider(true);
 
@@ -100,8 +116,15 @@ public sealed class StartMigrationConsumerTests
             new ConnectionDescriptor { Provider = new("imap"), Auth = AuthMethod.ImapBasic, Settings = new Dictionary<string, string>() },
             new ConnectionDescriptor { Provider = new("graph"), Auth = AuthMethod.GraphAppOAuth, Settings = new Dictionary<string, string>() }));
 
+        // Registered (the consumer ctor requires them) but never exercised: the cancel guard returns
+        // before any seeding / status write happens.
+        var lister = Substitute.For<IMessageRefLister>();
+        var ledger = Substitute.For<ILedger>();
+        var status = Substitute.For<IMigrationStatusWriter>();
+
         await using var provider = new ServiceCollection()
             .AddSingleton(sessions).AddSingleton(plan).AddSingleton(gate).AddSingleton(lookup)
+            .AddSingleton(lister).AddSingleton(ledger).AddSingleton(status)
             .AddMassTransitTestHarness(x => x.AddConsumer<StartMigrationConsumer>())
             .BuildServiceProvider(true);
 
@@ -112,6 +135,7 @@ public sealed class StartMigrationConsumerTests
             await harness.Bus.Publish(new StartMigration(Mid));
             (await harness.Consumed.Any<StartMigration>()).Should().BeTrue();
             (await harness.Published.SelectAsync<MigrateFolder>().ToListAsync()).Should().BeEmpty();
+            await status.DidNotReceiveWithAnyArgs().SetRunningAsync(default, default);
         }
         finally { await harness.Stop(); }
     }

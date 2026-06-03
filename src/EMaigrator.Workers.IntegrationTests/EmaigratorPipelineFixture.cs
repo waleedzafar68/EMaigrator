@@ -21,6 +21,7 @@ using EMaigrator.Workers.Consumers;
 using EMaigrator.Workers.Control;
 using EMaigrator.Workers.Copy;
 using EMaigrator.Workers.Orchestration;
+using EMaigrator.Workers.Persistence;
 using EMaigrator.Workers.Remediation;
 using EMaigrator.Workers.Sessions;
 using EMaigrator.Workers.Startup;
@@ -183,6 +184,10 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
                 services.AddSingleton<IRemediationPlanStore, EmptyRemediationStore>();
                 services.AddSingleton<IJobMigrationLookup, EmptyJobMigrationLookup>();
                 services.AddSingleton<IInterruptedJobLookup, TestInterruptedJobLookup>();
+
+                // Real EF status writer: StartMigrationConsumer now depends on it (08R). It loads the
+                // MailboxMigration by id; these test-double E2E runs don't persist one, so it no-ops.
+                services.AddSingleton<IMigrationStatusWriter, EfMigrationStatusWriter>();
 
                 services.AddMassTransit(x =>
                 {
