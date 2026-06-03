@@ -1,16 +1,28 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>emaigrator</AssemblyName>
+    <RootNamespace>EMaigrator.Cli</RootNamespace>
+  </PropertyGroup>
+
   <ItemGroup>
+    <!-- The CLI is a thin composition layer over Core abstractions + Infrastructure adapters, plus
+         the three v1 connector plugins. It composes its own host (no reference to EMaigrator.Workers,
+         which brings its own Program/host). -->
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
     <ProjectReference Include="..\EMaigrator.Infrastructure\EMaigrator.Infrastructure.csproj" />
-    <ProjectReference Include="..\EMaigrator.Workers\EMaigrator.Workers.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Graph\EMaigrator.Connectors.Graph.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
+    <PackageReference Include="Spectre.Console" />
+  </ItemGroup>
 
 </Project>
