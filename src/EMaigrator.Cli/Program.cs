@@ -1,5 +1,6 @@
 using System.CommandLine;
 using System.Reflection;
+using EMaigrator.Cli.Commands;
 
 namespace EMaigrator.Cli;
 
@@ -12,7 +13,31 @@ public static class CommandFactory
         root.Options.Add(GlobalOptions.Profile);
         root.Options.Add(GlobalOptions.Json);
         root.Options.Add(GlobalOptions.Verbose);
+        root.Subcommands.Add(BuildMigrationCommand());
         return root;
+    }
+
+    private static Command BuildMigrationCommand()
+    {
+        var migration = new Command("migration", "Manage migration profiles.");
+
+        var newCmd = new Command("new", "Scaffold a starter migration profile file.");
+        // Reuse the recursive global --profile; only --force is local to `migration new`.
+        var forceOpt = new Option<bool>("--force") { Description = "Overwrite an existing file." };
+        newCmd.Options.Add(forceOpt);
+        newCmd.SetAction(parse =>
+        {
+            FileInfo? target = parse.GetValue(GlobalOptions.Profile);
+            if (target is null)
+            {
+                Console.Error.WriteLine("migration new requires --profile <path> (where to write the profile).");
+                return (int)CliExitCode.ConfigError;
+            }
+            return (int)MigrationNewCommand.Execute(target.FullName, parse.GetValue(forceOpt));
+        });
+
+        migration.Subcommands.Add(newCmd);
+        return migration;
     }
 
     // System.CommandLine 2.0.0-beta5 makes Symbol.Name get-only and defaults a RootCommand's name
