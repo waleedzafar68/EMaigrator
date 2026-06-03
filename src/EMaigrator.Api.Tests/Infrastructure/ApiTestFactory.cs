@@ -48,6 +48,12 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
         {
             services.Replace(ServiceDescriptor.Scoped<ICurrentTenant, TestCurrentTenant>());
             FakeImapPluginFactoryExtensions.AddTestPlugins(services);
+
+            // Task 7: the async-preflight doubles. AddFakePreflight runs AFTER AddTestPlugins so its fake
+            // "graph" destination plugin is APPENDED to (not cleared with) the FakeImapPlugin, and the
+            // InlineTaskQueue replaces the production BackgroundTaskQueue for IBackgroundTaskQueue so the
+            // POST /preflight call completes the analysis synchronously before the test issues the GET.
+            FakePreflightExtensions.AddFakePreflight(services);
         });
 
         return base.CreateHost(builder);

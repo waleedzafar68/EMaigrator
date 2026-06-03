@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using EMaigrator.Api.Data;
 using EMaigrator.Api.Identity;
 using EMaigrator.Infrastructure;
 using EMaigrator.Infrastructure.Data;
@@ -65,6 +66,16 @@ public sealed class ApiInfraFixture : IAsyncLifetime
             .Options;
         await using var idCtx = new AppIdentityDbContext(idOptions);
         await idCtx.Database.MigrateAsync();
+
+        // And the Api-owned side store (preflight plans). Same container, its own distinct
+        // migrations-history table so it never clashes with EmaigratorDbContext (default history) or
+        // the Identity context (__EFMigrationsHistory_Identity).
+        var sideOptions = new DbContextOptionsBuilder<ApiSideContext>()
+            .UseNpgsql(PostgresConnectionString,
+                npg => npg.MigrationsHistoryTable("__EFMigrationsHistory_ApiSide"))
+            .Options;
+        await using var sideCtx = new ApiSideContext(sideOptions);
+        await sideCtx.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()

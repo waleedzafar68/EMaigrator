@@ -2,6 +2,7 @@ using System;
 using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using EMaigrator.Api.Data;
 using EMaigrator.Api.Identity;
 using EMaigrator.Api.Realtime;
 using EMaigrator.Api.Services;
@@ -174,6 +175,21 @@ public static class ApiServiceCollectionExtensions
         // mailbox-migration id to its owning Job id via the unfiltered DbContext factory. Singleton is
         // fine: the impl only captures the (singleton) factory and opens a short-lived context per call.
         services.AddSingleton<IMailboxJobLookup, MailboxJobLookup>();
+
+        // Task 7: async pre-flight. The endpoints enqueue a unit of work on the in-process
+        // BackgroundTaskQueue; the QueuedHostedService drains it on a background thread, creating a fresh
+        // DI scope per item and resolving the scoped IPreflightRunner. The concrete BackgroundTaskQueue is
+        // registered as itself (consumed by the hosted pump) AND as IBackgroundTaskQueue (consumed by
+        // endpoints); tests swap only the abstraction for an inline queue. The plan is persisted to the
+        // API-owned ApiSideContext — same Postgres database, its own __EFMigrationsHistory_ApiSide history
+        // table so its migration coexists with the engine's and the Identity context's.
+        services.AddSingleton<BackgroundTaskQueue>();
+        services.AddSingleton<IBackgroundTaskQueue>(sp => sp.GetRequiredService<BackgroundTaskQueue>());
+        services.AddHostedService<QueuedHostedService>();
+        services.AddScoped<IPreflightRunner, PreflightRunner>();
+        services.AddDbContext<ApiSideContext>(o =>
+            o.UseNpgsql(config["Infrastructure:PostgresConnectionString"],
+                npg => npg.MigrationsHistoryTable("__EFMigrationsHistory_ApiSide")));
 
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();
