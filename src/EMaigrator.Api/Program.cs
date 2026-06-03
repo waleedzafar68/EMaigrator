@@ -46,6 +46,7 @@ v1.MapScopeEndpoints();
 v1.MapPreflightEndpoints();
 v1.MapRunControlEndpoints();
 v1.MapResultsEndpoints();
+v1.MapReportEndpoints();
 
 // Live migration progress hub. [Authorize]'d; the SignalR WebSocket handshake carries the bearer token
 // via the access_token query string (wired into the JWT OnMessageReceived handler for /hubs paths).

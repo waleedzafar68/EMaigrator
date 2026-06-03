@@ -191,6 +191,12 @@ public static class ApiServiceCollectionExtensions
             o.UseNpgsql(config["Infrastructure:PostgresConnectionString"],
                 npg => npg.MigrationsHistoryTable("__EFMigrationsHistory_ApiSide")));
 
+        // Task 10: the report exporters. Both render from the provider-agnostic ReportData; the endpoint
+        // resolves the IEnumerable<IReportBuilder> and selects by the lower-cased ?format= token. Singletons:
+        // both are stateless (the PDF builder's QuestPDF Community license is set once in its static ctor).
+        services.AddSingleton<EMaigrator.Api.Reporting.IReportBuilder, EMaigrator.Api.Reporting.CsvReportBuilder>();
+        services.AddSingleton<EMaigrator.Api.Reporting.IReportBuilder, EMaigrator.Api.Reporting.PdfReportBuilder>();
+
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();
 

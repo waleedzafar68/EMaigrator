@@ -130,4 +130,10 @@
   <ItemGroup>
     <PackageVersion Include="CsvHelper" Version="33.0.1" />
   </ItemGroup>
+
+  <!-- Plan 08 (API) Task 10: QuestPDF (MIT for OSS via the Community license) renders the downloadable
+       PDF migration report. SkiaSharp native assets restore transitively on .NET 10. -->
+  <ItemGroup>
+    <PackageVersion Include="QuestPDF" Version="2024.12.3" />
+  </ItemGroup>
 </Project>
