@@ -1,0 +1,68 @@
+/* EMaigrator design tokens — ported from design_handoff_emaigrator/styles.css */
+:root {
+  --font-sans: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --fs-display: 1.875rem; --lh-display: 2.25rem;
+  --fs-h1: 1.5rem; --lh-h1: 2rem;
+  --fs-h2: 1.25rem; --lh-h2: 1.75rem;
+  --fs-body: 0.9375rem; --lh-body: 1.5rem;
+  --fs-sm: 0.8125rem; --lh-sm: 1.25rem;
+  --fs-xs: 0.75rem; --lh-xs: 1rem;
+  --fs-mono: 0.875rem;
+
+  --radius: 6px; --radius-sm: 4px; --radius-lg: 8px; --radius-full: 999px;
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s6: 24px; --s8: 32px; --s12: 48px;
+
+  --card-pad: 20px; --row-pad-y: 11px; --row-pad-x: 16px;
+  --section-gap: 24px; --grid-gap: 16px;
+  --control-h: 38px; --hit: 40px; --body-scale: 1;
+}
+
+:root, [data-theme="light"] {
+  --accent: #0d9488; --accent-hover: #0f766e; --accent-fg: #ffffff;
+  --accent-subtle: #f0fdfa; --accent-line: #99f6e4;
+  --bg: #ffffff; --surface: #f8fafc; --surface-2: #f1f5f9; --surface-raised: #ffffff;
+  --border: #e2e8f0; --border-strong: #cbd5e1;
+  --fg: #0f172a; --fg-muted: #64748b; --fg-subtle: #94a3b8;
+  --success: #16a34a; --success-bg: #f0fdf4; --success-line: #bbf7d0;
+  --throttled: #d97706; --throttled-bg: #fffbeb; --throttled-line: #fde68a;
+  --warning: #ca8a04; --warning-bg: #fefce8; --warning-line: #fef08a;
+  --error: #dc2626; --error-bg: #fef2f2; --error-line: #fecaca;
+  --idle: #64748b; --idle-bg: #f1f5f9; --idle-line: #e2e8f0;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.06), 0 1px 1px rgba(15,23,42,0.04);
+  --shadow-md: 0 8px 24px -6px rgba(15,23,42,0.14), 0 2px 6px rgba(15,23,42,0.06);
+  --chart-grid: #eef2f7;
+}
+
+[data-theme="dark"] {
+  --accent: #2dd4bf; --accent-hover: #5eead4; --accent-fg: #042f2e;
+  --accent-subtle: #134e4a; --accent-line: #115e59;
+  --bg: #0b1120; --surface: #111827; --surface-2: #161f31; --surface-raised: #131c2e;
+  --border: #1e293b; --border-strong: #334155;
+  --fg: #e2e8f0; --fg-muted: #94a3b8; --fg-subtle: #64748b;
+  --success: #4ade80; --success-bg: #0d2417; --success-line: #14532d;
+  --throttled: #fbbf24; --throttled-bg: #281c08; --throttled-line: #78350f;
+  --warning: #facc15; --warning-bg: #2a2408; --warning-line: #713f12;
+  --error: #f87171; --error-bg: #2a1212; --error-line: #7f1d1d;
+  --idle: #94a3b8; --idle-bg: #1a2335; --idle-line: #334155;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow-md: 0 12px 32px -8px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
+  --chart-grid: #1b2536;
+}
+
+[data-density="comfortable"] {
+  --card-pad: 22px; --row-pad-y: 13px; --row-pad-x: 18px;
+  --section-gap: 28px; --grid-gap: 18px; --control-h: 42px; --hit: 44px; --body-scale: 1.06;
+}
+[data-density="compact"] {
+  --card-pad: 14px; --row-pad-y: 6px; --row-pad-x: 12px;
+  --section-gap: 16px; --grid-gap: 12px; --control-h: 32px; --hit: 32px; --body-scale: 0.96;
+}
+
+@keyframes em-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes em-skeleton { 0%,100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+.theme-anim-off * { transition: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
