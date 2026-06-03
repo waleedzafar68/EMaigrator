@@ -23,7 +23,7 @@ public sealed class ScaffoldSmokeTests
 
     public ScaffoldSmokeTests(ApiInfraFixture fx) => _fx = fx;
 
-    [Fact]
+    [Fact(Timeout = 30_000)]
     public async Task Health_endpoint_is_public_and_returns_200()
     {
         await using var factory = new ApiTestFactory(_fx);
@@ -31,28 +31,32 @@ public sealed class ScaffoldSmokeTests
 
         // The MassTransit bus connects to RabbitMQ asynchronously on host start, so its health check
         // can lag the very first request by ~1s. Poll briefly until the endpoint reports healthy.
-        var res = await GetHealthWhenReadyAsync(client);
+        using var res = await GetHealthWhenReadyAsync(client);
 
         res.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await res.Content.ReadFromJsonAsync<Dictionary<string, JsonElement>>();
+        json.Should().NotBeNull("the /health endpoint must return a JSON body");
         json!.Should().ContainKey("status");
     }
 
     private static async Task<HttpResponseMessage> GetHealthWhenReadyAsync(HttpClient client)
     {
-        HttpResponseMessage res = null!;
+        HttpResponseMessage? res = null;
         for (var attempt = 0; attempt < 20; attempt++)
         {
+            res?.Dispose();
             res = await client.GetAsync(new Uri("/health", UriKind.Relative));
             if (res.StatusCode == HttpStatusCode.OK)
             {
-                return res;
+                return res; // live, caller disposes
             }
 
-            res.Dispose();
             await Task.Delay(TimeSpan.FromMilliseconds(500), CancellationToken.None);
         }
 
-        return res;
+        var last = res?.StatusCode;
+        res?.Dispose();
+        throw new TimeoutException(
+            $"/health did not return 200 within ~10s (20 attempts). Last status: {last}.");
     }
 }
