@@ -1,8 +1,14 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using EMaigrator.Api.Identity;
+using EMaigrator.Api.Services;
 using EMaigrator.Api.Tenancy;
+using EMaigrator.Connectors.Gmail;
+using EMaigrator.Connectors.Graph;
+using EMaigrator.Connectors.Imap;
+using EMaigrator.Core.Diagnostics;
 using EMaigrator.Infrastructure;
 using EMaigrator.Infrastructure.Data;
 using MassTransit;
@@ -127,6 +133,23 @@ public static class ApiServiceCollectionExtensions
         // JWT issuance (validation middleware lands in Task 2).
         services.Configure<JwtOptions>(config.GetSection("Jwt"));
         services.AddSingleton<IJwtTokenIssuer, JwtTokenIssuer>();
+
+        // The three v1 connector plugins (each TryAddEnumerable's an IProviderPlugin). The connection
+        // test/preflight paths resolve the IEnumerable<IProviderPlugin> and select by descriptor.Provider.
+        services.AddImapConnector();
+        services.AddGraphConnector();
+        services.AddGmailConnector();
+
+        // The error catalog the connection-test path uses to map a provider failure signature into a
+        // stable, credential-free code. The real Core ErrorCatalog is data-driven (its ctor takes the
+        // provider rule set). The OSS core does not yet ship an assembled production rule set — see the
+        // Core diagnostics tests, which construct rules inline — so it is registered with an (extensible)
+        // empty rule list. Match then returns null for unmatched signatures and the service emits
+        // "UNKNOWN_ERROR", which is the correct contract behavior; populating the rule set is a follow-up.
+        services.AddSingleton<IErrorCatalog>(_ => new ErrorCatalog(new List<ErrorRule>()));
+
+        // The connection wizard service: stores creds via ISecretStore + tests the connector.
+        services.AddScoped<IConnectionService, ConnectionService>();
 
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();

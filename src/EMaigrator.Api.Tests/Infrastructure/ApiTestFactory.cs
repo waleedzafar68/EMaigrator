@@ -39,8 +39,16 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
         // Override the per-request ICurrentTenant with a test accessor whose tenant can be set
         // explicitly for direct-DbContext seeding scopes (and which still reads the tenant_id claim
         // for real HTTP requests). Scoped so each request/seeding scope gets its own instance.
+        //
+        // The factory ALWAYS registers the connection-test doubles here too: AddTestPlugins REPLACES the
+        // real connector plugins + IErrorCatalog with a deterministic FakeImapPlugin + NSubstitute
+        // catalog, so the connection-test path never reaches a real IMAP server. This is harmless for the
+        // earlier tests (they don't resolve plugins). Later tasks add more doubles to this same spot.
         builder.ConfigureServices(services =>
-            services.Replace(ServiceDescriptor.Scoped<ICurrentTenant, TestCurrentTenant>()));
+        {
+            services.Replace(ServiceDescriptor.Scoped<ICurrentTenant, TestCurrentTenant>());
+            FakeImapPluginFactoryExtensions.AddTestPlugins(services);
+        });
 
         return base.CreateHost(builder);
     }

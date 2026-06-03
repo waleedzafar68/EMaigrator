@@ -41,6 +41,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 var v1 = app.MapGroup("/api/v1");
 v1.MapAuthEndpoints();
 v1.MapMigrationEndpoints();
+v1.MapConnectionEndpoints();
 
 app.Run();
 
