@@ -65,6 +65,12 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
             // without a worker writing real ledger rows. Harmless for earlier tests (they never read the
             // ledger through an endpoint).
             FakeLedgerExtensions.AddFakeLedger(services);
+
+            // Task 14: replace the production LoggingEmailSender + DbNotificationRecipientResolver with a
+            // capturing email sender + stub resolver so the functional capstone can assert exactly one
+            // terminal-state email and resolve a recipient without a seeded owning user. Harmless for
+            // earlier suites (they never resolve these through the DI graph).
+            CapturingEmailExtensions.AddCapturingEmail(services);
         });
 
         return base.CreateHost(builder);
