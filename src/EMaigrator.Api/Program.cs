@@ -10,11 +10,23 @@ builder.Services.AddEMaigratorApi(builder.Configuration);
 
 var app = builder.Build();
 
+// Security headers run first so every response — including errors, 404s, and short-circuited
+// CORS preflights — carries nosniff/DENY/Referrer-Policy/CSP (and HSTS over HTTPS).
+app.UseMiddleware<EMaigrator.Api.Security.SecurityHeadersMiddleware>();
+
+// CORS before auth so preflight (OPTIONS) requests are answered against the configured origin policy
+// without first tripping the authentication/authorization gate.
+app.UseCors();
+
 // Authentication + authorization run before endpoint mapping so the default fallback policy
 // (RequireAuthenticatedUser) protects every endpoint that does not opt into .AllowAnonymous()
 // (the auth endpoints and /health stay anonymous).
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Rate limiter after routing/auth, before endpoint mapping, so the "auth" policy (per-IP fixed window)
+// applies to the register/login endpoints that opt in via .RequireRateLimiting.
+app.UseRateLimiter();
 
 if (app.Environment.IsDevelopment())
 {

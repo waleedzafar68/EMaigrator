@@ -6,6 +6,7 @@ using EMaigrator.Api.Data;
 using EMaigrator.Api.Identity;
 using EMaigrator.Api.Notifications;
 using EMaigrator.Api.Realtime;
+using EMaigrator.Api.Security;
 using EMaigrator.Api.Services;
 using EMaigrator.Api.Tenancy;
 using EMaigrator.Connectors.Gmail;
@@ -210,6 +211,20 @@ public static class ApiServiceCollectionExtensions
         services.AddScoped<ISentGuard, DbSentGuard>();
         services.AddScoped<INotificationRecipientResolver, DbNotificationRecipientResolver>();
         services.AddSingleton<IAppEmailSender, LoggingEmailSender>();
+
+        // Task 12: brute-force guard on the auth endpoints — a per-IP fixed-window limiter (policy "auth").
+        services.AddEMaigratorRateLimiting();
+
+        // Task 12: lock CORS to the configured SPA origins (empty by default; the test host injects
+        // http://localhost:5173). AllowCredentials is required for the cookie/SignalR access-token flow,
+        // so the policy must enumerate explicit origins (no wildcard) — an unconfigured origin gets no
+        // Access-Control-Allow-Origin and is therefore blocked by the browser.
+        var origins = config.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? Array.Empty<string>();
+        services.AddCors(options => options.AddDefaultPolicy(policy => policy
+            .WithOrigins(origins)
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()));
 
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();

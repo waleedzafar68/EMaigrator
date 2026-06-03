@@ -32,8 +32,12 @@ public static class AuthEndpoints
 
         var auth = group.MapGroup("/auth");
 
-        auth.MapPost("/register", RegisterAsync).AllowAnonymous();
-        auth.MapPost("/login", LoginAsync).AllowAnonymous();
+        auth.MapPost("/register", RegisterAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting(Security.RateLimitPolicies.Auth);
+        auth.MapPost("/login", LoginAsync)
+            .AllowAnonymous()
+            .RequireRateLimiting(Security.RateLimitPolicies.Auth);
 
         return group;
     }

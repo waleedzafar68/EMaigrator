@@ -108,6 +108,9 @@ public sealed class ApiInfraFixture : IAsyncLifetime
         ["Jwt:SigningKey"] = "emaigrator-dev-signing-key-please-change-in-prod-0123456789",
         ["Jwt:Issuer"] = "emaigrator",
         ["Jwt:Audience"] = "emaigrator",
+        // Task 12: the SPA origin the CORS policy must allow. appsettings.json ships an empty list, so the
+        // test host supplies the dev origin here for SecurityHardeningTests' CORS allow/deny assertions.
+        ["Cors:AllowedOrigins:0"] = "http://localhost:5173",
     };
 }
 
