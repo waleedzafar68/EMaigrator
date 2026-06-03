@@ -115,4 +115,15 @@ public sealed class ReportEndpointTests
 
         res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Report_for_other_tenants_job_returns_404()
+    {
+        var (client, _) = await AuthClient.CreateAsync(_factory);
+        var otherTenantId = await Seed(Guid.NewGuid());
+
+        using var res = await client.GetAsync(new Uri($"/api/v1/migrations/{otherTenantId}/report?format=csv", UriKind.Relative));
+
+        res.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

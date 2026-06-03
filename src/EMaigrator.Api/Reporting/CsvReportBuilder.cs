@@ -3,6 +3,7 @@ using System.Globalization;
 using System.IO;
 using System.Text;
 using CsvHelper;
+using CsvHelper.Configuration;
 
 namespace EMaigrator.Api.Reporting;
 
@@ -27,7 +28,11 @@ public sealed class CsvReportBuilder : IReportBuilder
         ArgumentNullException.ThrowIfNull(data);
 
         using var sw = new StringWriter(CultureInfo.InvariantCulture);
-        using (var csv = new CsvWriter(sw, CultureInfo.InvariantCulture))
+        var config = new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            InjectionOptions = InjectionOptions.Escape,
+        };
+        using (var csv = new CsvWriter(sw, config))
         {
             csv.WriteField("Migration");
             csv.WriteField(data.MigrationId.ToString());
