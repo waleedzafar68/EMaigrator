@@ -44,4 +44,12 @@ public class CsvMailboxParserTests
         var act = () => CsvMailboxParser.Parse(S("source_mailbox,destination_mailbox\na@old.com,a@new.com\na@old.com,c@new.com\n"));
         act.Should().Throw<CsvValidationException>().WithMessage("*duplicate*row 3*");
     }
+
+    [Fact]
+    public void Parses_csv_with_mixed_case_header()
+    {
+        var pairs = CsvMailboxParser.Parse(S("SOURCE_MAILBOX,Destination_Mailbox\nx@old.com,x@new.com\n"));
+        pairs.Should().HaveCount(1);
+        pairs[0].SourceMailbox.Should().Be("x@old.com");
+    }
 }

@@ -40,54 +40,65 @@ public static class CsvMailboxParser
             TrimOptions = TrimOptions.Trim,
         });
 
-        if (!parser.Read())
+        // Wrap the CsvHelper read loop so its own malformed-input exceptions (bad quoting/escaping, etc.)
+        // surface as a 400-mapped CsvValidationException rather than escaping as a 500. Our own
+        // CsvValidationException does not derive from CsvHelperException, so the catch below never
+        // re-wraps it — it propagates unchanged with its original validation message and row number.
+        try
         {
-            throw new CsvValidationException("CSV is empty; expected a header 'source_mailbox,destination_mailbox'.");
-        }
-
-        var header = parser.Record ?? [];
-        var srcIdx = Array.FindIndex(header, h => string.Equals(h, "source_mailbox", StringComparison.OrdinalIgnoreCase));
-        var dstIdx = Array.FindIndex(header, h => string.Equals(h, "destination_mailbox", StringComparison.OrdinalIgnoreCase));
-        if (srcIdx < 0 || dstIdx < 0)
-        {
-            throw new CsvValidationException("CSV header must contain 'source_mailbox' and 'destination_mailbox'.");
-        }
-
-        var pairs = new List<MailboxPair>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var rowNum = 1;
-        while (parser.Read())
-        {
-            rowNum++;
-            var rec = parser.Record ?? [];
-            var src = srcIdx < rec.Length ? rec[srcIdx]?.Trim() ?? "" : "";
-            var dst = dstIdx < rec.Length ? rec[dstIdx]?.Trim() ?? "" : "";
-            if (string.IsNullOrWhiteSpace(src) || string.IsNullOrWhiteSpace(dst))
+            if (!parser.Read())
             {
-                throw new CsvValidationException(
-                    string.Create(CultureInfo.InvariantCulture, $"Blank mailbox value at row {rowNum}."));
+                throw new CsvValidationException("CSV is empty; expected a header 'source_mailbox,destination_mailbox'.");
             }
 
-            if (!src.Contains('@', StringComparison.Ordinal) || !dst.Contains('@', StringComparison.Ordinal))
+            var header = parser.Record ?? [];
+            var srcIdx = Array.FindIndex(header, h => string.Equals(h, "source_mailbox", StringComparison.OrdinalIgnoreCase));
+            var dstIdx = Array.FindIndex(header, h => string.Equals(h, "destination_mailbox", StringComparison.OrdinalIgnoreCase));
+            if (srcIdx < 0 || dstIdx < 0)
             {
-                throw new CsvValidationException(
-                    string.Create(CultureInfo.InvariantCulture, $"Invalid mailbox address at row {rowNum}."));
+                throw new CsvValidationException("CSV header must contain 'source_mailbox' and 'destination_mailbox'.");
             }
 
-            if (!seen.Add(src))
+            var pairs = new List<MailboxPair>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var rowNum = 1;
+            while (parser.Read())
             {
-                throw new CsvValidationException(
-                    string.Create(CultureInfo.InvariantCulture, $"duplicate source mailbox '{src}' at row {rowNum}."));
+                rowNum++;
+                var rec = parser.Record ?? [];
+                var src = srcIdx < rec.Length ? rec[srcIdx]?.Trim() ?? "" : "";
+                var dst = dstIdx < rec.Length ? rec[dstIdx]?.Trim() ?? "" : "";
+                if (string.IsNullOrWhiteSpace(src) || string.IsNullOrWhiteSpace(dst))
+                {
+                    throw new CsvValidationException(
+                        string.Create(CultureInfo.InvariantCulture, $"Blank mailbox value at row {rowNum}."));
+                }
+
+                if (!src.Contains('@', StringComparison.Ordinal) || !dst.Contains('@', StringComparison.Ordinal))
+                {
+                    throw new CsvValidationException(
+                        string.Create(CultureInfo.InvariantCulture, $"Invalid mailbox address at row {rowNum}."));
+                }
+
+                if (!seen.Add(src))
+                {
+                    throw new CsvValidationException(
+                        string.Create(CultureInfo.InvariantCulture, $"duplicate source mailbox '{src}' at row {rowNum}."));
+                }
+
+                pairs.Add(new MailboxPair(src, dst));
             }
 
-            pairs.Add(new MailboxPair(src, dst));
+            if (pairs.Count == 0)
+            {
+                throw new CsvValidationException("CSV contains no mailbox pairs.");
+            }
+
+            return pairs;
         }
-
-        if (pairs.Count == 0)
+        catch (CsvHelperException ex)
         {
-            throw new CsvValidationException("CSV contains no mailbox pairs.");
+            throw new CsvValidationException($"CSV format error: {ex.Message}");
         }
-
-        return pairs;
     }
 }
