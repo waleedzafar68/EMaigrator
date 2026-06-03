@@ -15,7 +15,7 @@ public class FoundationAcceptanceTests
         "EMaigrator.Infrastructure",
         "EMaigrator.Workers",
         "EMaigrator.Api",
-        "EMaigrator.Cli",
+        "emaigrator", // EMaigrator.Cli sets <AssemblyName>emaigrator</AssemblyName> (the CLI binary name).
     ];
 
     [Fact]
