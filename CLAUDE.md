@@ -27,7 +27,7 @@ Execute with `superpowers-extended-cc:subagent-driven-development` (recommended)
 <!-- BUILD-STATUS:START — auto-maintained; see "Keeping this current" -->
 ## Build Status
 
-_Last updated: 2026-06-03 — Plan 06 (Connector: Gmail) complete ✅; all three v1 connectors (04 IMAP · 05 Graph · 06 Gmail) plus foundation/core/infra are done. Frontend 10 remains in Wave C; Wave D (07 workers) is unblocked and leads the WorkMail→MS365 v1 path (IMAP source + Graph dest)._
+_Last updated: 2026-06-03 — Plan 07 (Workers) complete ✅; the four-stage streaming migration engine (StartMigration → MigrateFolder → MigrateBatch → copy) plus pause/resume/cancel, crash-resume, DLQ, and the Redis rate-limiter gate are done and gate-green. Foundation/core/infra + all three v1 connectors + workers are now done. Wave E (08 API · 09 CLI) is unblocked; Frontend 10 remains in Wave C._
 
 | # | Plan | Sub-tasks | Status | Wave | Verified |
 |---|---|---|---|---|---|
@@ -37,7 +37,7 @@ _Last updated: 2026-06-03 — Plan 06 (Connector: Gmail) complete ✅; all three
 | 04 | Connector: IMAP | 11 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (207 passed, 0 failed; IMAP unit 46 + integration 11 via GreenMail Testcontainers; security userGate + functional gates green) |
 | 05 | Connector: Graph | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (289 passed, 2 skipped, 0 failed; Graph unit 82 via WireMock; security userGate + functional round-trip gates green; live-smoke + live-audit are opt-in skips) |
 | 06 | Connector: Gmail | 14 | ✅ done | C | 2026-06-03 · `dotnet test src/EMaigrator.sln -c Release` (367 passed, 2 skipped, 0 failed; Gmail unit 79 via WireMock; security userGate + functional E2E gates green; paid-Workspace live testing deferred per DESIGN §17) |
-| 07 | Workers | 13 | ⬜ pending | D | — |
+| 07 | Workers | 13 | ✅ done | D | 2026-06-03 · `dotnet test src/EMaigrator.Workers.Tests -c Release` (27 passed) + `dotnet test src/EMaigrator.Workers.IntegrationTests -c Release` (10 passed: 4 E2E pipeline + 3 Redis-gate + 3 security; security userGate + functional gates green via Postgres/RabbitMQ/Redis/GreenMail Testcontainers) |
 | 08 | API | 15 | ⬜ pending | E | — |
 | 09 | CLI | 15 | ⬜ pending | E | — |
 | 10 | Frontend | 15 | ⬜ pending | C→F | — |
