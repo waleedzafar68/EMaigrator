@@ -18,6 +18,8 @@ public static class CommandFactory
         root.Subcommands.Add(BuildPreflightCommand());
         root.Subcommands.Add(BuildRunCommand());
         root.Subcommands.Add(BuildResumeCommand());
+        root.Subcommands.Add(BuildStatusCommand());
+        root.Subcommands.Add(BuildReportCommand());
         return root;
     }
 
@@ -76,6 +78,26 @@ public static class CommandFactory
         resume.Options.Add(idOpt);
         resume.SetAction((parse, ct) => CommandRunner.RunMigrationAsync(parse, idOpt, resume: true, ct));
         return resume;
+    }
+
+    private static Command BuildStatusCommand()
+    {
+        var status = new Command("status", "Show a migration's current status and counts.");
+        var idOpt = new Option<Guid>("--id") { Description = "Mailbox-migration id.", Required = true };
+        status.Options.Add(idOpt);
+        status.SetAction((parse, ct) => CommandRunner.RunStatusAsync(parse, idOpt, ct));
+        return status;
+    }
+
+    private static Command BuildReportCommand()
+    {
+        var report = new Command("report", "Export a metadata-only CSV report of ledger entries.");
+        var idOpt = new Option<Guid>("--id") { Description = "Mailbox-migration id.", Required = true };
+        var outOpt = new Option<FileInfo?>("--out", "-o") { Description = "CSV file (default: stdout)." };
+        report.Options.Add(idOpt);
+        report.Options.Add(outOpt);
+        report.SetAction((parse, ct) => CommandRunner.RunReportAsync(parse, idOpt, outOpt, ct));
+        return report;
     }
 
     // System.CommandLine 2.0.0-beta5 makes Symbol.Name get-only and defaults a RootCommand's name

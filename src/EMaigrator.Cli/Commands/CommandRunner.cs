@@ -24,4 +24,10 @@ public static class CommandRunner
 
     public static Task<int> RunMigrationAsync(ParseResult parse, Option<Guid> idOpt, bool resume, CancellationToken ct) =>
         Task.FromResult((int)CliExitCode.UsageError);
+
+    public static Task<int> RunStatusAsync(ParseResult parse, Option<Guid> idOpt, CancellationToken ct) =>
+        Task.FromResult((int)CliExitCode.UsageError);
+
+    public static Task<int> RunReportAsync(ParseResult parse, Option<Guid> idOpt, Option<FileInfo?> outOpt, CancellationToken ct) =>
+        Task.FromResult((int)CliExitCode.UsageError);
 }
