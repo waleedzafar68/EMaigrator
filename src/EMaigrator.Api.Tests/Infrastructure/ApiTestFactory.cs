@@ -59,6 +59,12 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
             // a singleton RecordingOrchestrator so the approve/control endpoints' calls are observable from
             // the root provider (_factory.Services) in the run-control tests.
             RecordingOrchestratorExtensions.AddRecordingOrchestrator(services);
+
+            // Task 9: replace the production scoped ILedger (PostgresLedger, from AddInfrastructure) with a
+            // singleton deterministic FakeLedger (3/1/1/0) so the results/reconciliation endpoint is stable
+            // without a worker writing real ledger rows. Harmless for earlier tests (they never read the
+            // ledger through an endpoint).
+            FakeLedgerExtensions.AddFakeLedger(services);
         });
 
         return base.CreateHost(builder);
