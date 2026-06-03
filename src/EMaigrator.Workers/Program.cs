@@ -17,14 +17,10 @@ builder.Services.AddImapConnector();
 builder.Services.AddGraphConnector();
 builder.Services.AddGmailConnector();
 
-// The four-stage streaming pipeline: control gate, session/copier factories, the five consumers,
-// the job orchestrator, the crash-resume hosted service, and the RabbitMQ topology + DLQ retry.
+// The streaming pipeline: control gate, session/copier factories, the consumers (incl. the
+// completion consumer), the job orchestrator, the crash-resume hosted service, the real EF/IMAP
+// data-seams (AddWorkerDataSeams), and the RabbitMQ topology + DLQ retry.
 builder.Services.AddEmaigratorWorkers(builder.Configuration);
-
-// The persistence-backed lookups the consumers depend on are implemented in Plan 08 (API), which
-// reads the EF entities. Until then they are registered as pending placeholders so the host
-// composes and starts idle; invoking one before Plan 08 throws a clear NotImplementedException.
-builder.Services.AddPendingWorkerSeams();
 
 var host = builder.Build();
 host.Run();

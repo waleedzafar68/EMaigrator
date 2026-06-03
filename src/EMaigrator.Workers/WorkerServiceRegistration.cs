@@ -32,6 +32,9 @@ public static class WorkerServiceRegistration
         services.AddSingleton<IJobOrchestrator>(sp => new MassTransitJobOrchestrator(sp.GetRequiredService<IBus>()));
         services.AddHostedService<CrashResumeStartupService>();
 
+        // Real EF/IMAP-backed per-message data-seams + safe empty collection lookups.
+        services.AddWorkerDataSeams();
+
         services.AddMassTransit(x =>
         {
             x.AddConsumer<StartMigrationConsumer>();
@@ -39,6 +42,7 @@ public static class WorkerServiceRegistration
             x.AddConsumer<MigrateBatchConsumer>();
             x.AddConsumer<MigrateBatchFaultConsumer>();
             x.AddConsumer<JobControlConsumer>();
+            x.AddConsumer<MigrationCompletionConsumer>();
 
             if (useInMemory)
             {

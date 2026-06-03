@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Configuration;
+using EMaigrator.Infrastructure.Data;
 using EMaigrator.Workers;
 using EMaigrator.Workers.Consumers;
 using EMaigrator.Workers.Control;
@@ -10,6 +11,7 @@ using EMaigrator.Workers.Remediation;
 using EMaigrator.Workers.Sessions;
 using EMaigrator.Workers.Startup;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -41,12 +43,10 @@ public sealed class WorkerServiceRegistrationTests
         services.AddSingleton(Substitute.For<ISecretStore>());
         services.AddSingleton(Substitute.For<ILedger>());
         services.AddSingleton(Substitute.For<IRateLimiter>());
-        services.AddSingleton(Substitute.For<IMigrationConnectionLookup>());
-        services.AddSingleton(Substitute.For<IMessageRefLister>());
-        services.AddSingleton(Substitute.For<IMessageHydrator>());
-        services.AddSingleton(Substitute.For<IRemediationPlanStore>());
-        services.AddSingleton(Substitute.For<IJobMigrationLookup>());
-        services.AddSingleton(Substitute.For<IInterruptedJobLookup>());
+        // The per-message data-seams are now self-registered by AddEmaigratorWorkers
+        // (AddWorkerDataSeams); the EF-backed ones only need an IDbContextFactory (normally from
+        // AddInfrastructure), substituted here so the graph composes.
+        services.AddSingleton(Substitute.For<IDbContextFactory<EmaigratorDbContext>>());
 
         services.AddEmaigratorWorkers(config);
         return services.BuildServiceProvider(true);
