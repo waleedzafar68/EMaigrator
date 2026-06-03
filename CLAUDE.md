@@ -27,7 +27,7 @@ Execute with `superpowers-extended-cc:subagent-driven-development` (recommended)
 <!-- BUILD-STATUS:START — auto-maintained; see "Keeping this current" -->
 ## Build Status
 
-_Last updated: 2026-06-03 — Plan 07 (Workers) complete ✅; the four-stage streaming migration engine (StartMigration → MigrateFolder → MigrateBatch → copy) plus pause/resume/cancel, crash-resume, DLQ, and the Redis rate-limiter gate are done and gate-green. Foundation/core/infra + all three v1 connectors + workers are now done. Wave E (08 API · 09 CLI) is unblocked; Frontend 10 remains in Wave C._
+_Last updated: 2026-06-03 — Plan 08 (API) complete ✅; the full REST surface (auth, migrations CRUD + draft, connection store/test, scope JSON+CSV, async preflight, approve + pause/resume/cancel, results/reconciliation/audit/rerun, CSV+PDF report) + MigrationsHub SignalR (Redis backplane + worker→hub bridge) + terminal-state email + CORS/security-headers/auth-rate-limit, all tenant-isolated via a sentinel EF query filter on EmaigratorDbContext. Identity lives in an Api-local IdentityDbContext; API-owned orchestration state (preflight/resolutions/notifications) in ApiSideContext — both separate migration-history tables on the same Postgres; Plan 03/07 suites re-verified green. Security userGate + functional E2E gates green (74 tests). Wave E: 09 CLI remains; Frontend 10 integrates live in Wave F._
 
 | # | Plan | Sub-tasks | Status | Wave | Verified |
 |---|---|---|---|---|---|
@@ -38,7 +38,7 @@ _Last updated: 2026-06-03 — Plan 07 (Workers) complete ✅; the four-stage str
 | 05 | Connector: Graph | 14 | ✅ done | C | 2026-06-02 · `dotnet test src/EMaigrator.sln -c Release` (289 passed, 2 skipped, 0 failed; Graph unit 82 via WireMock; security userGate + functional round-trip gates green; live-smoke + live-audit are opt-in skips) |
 | 06 | Connector: Gmail | 14 | ✅ done | C | 2026-06-03 · `dotnet test src/EMaigrator.sln -c Release` (367 passed, 2 skipped, 0 failed; Gmail unit 79 via WireMock; security userGate + functional E2E gates green; paid-Workspace live testing deferred per DESIGN §17) |
 | 07 | Workers | 13 | ✅ done | D | 2026-06-03 · `dotnet test src/EMaigrator.Workers.Tests -c Release` (27 passed) + `dotnet test src/EMaigrator.Workers.IntegrationTests -c Release` (10 passed: 4 E2E pipeline + 3 Redis-gate + 3 security; security userGate + functional gates green via Postgres/RabbitMQ/Redis/GreenMail Testcontainers) |
-| 08 | API | 15 | ⬜ pending | E | — |
+| 08 | API | 15 | ✅ done | E | 2026-06-03 · `dotnet test src/EMaigrator.Api.Tests -c Release` (74 passed, 0 failed; ASP.NET Core REST + SignalR + Api-local Identity over a Postgres+Redis+RabbitMQ Testcontainers harness; security userGate gate [28 tests: auth-sweep, cross-tenant, no-secret, input-validation, hardening] + functional E2E wizard gate green; tenant isolation via a sentinel EF query filter added to EmaigratorDbContext) |
 | 09 | CLI | 15 | ⬜ pending | E | — |
 | 10 | Frontend | 15 | ⬜ pending | C→F | — |
 
