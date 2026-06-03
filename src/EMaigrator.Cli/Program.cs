@@ -15,6 +15,7 @@ public static class CommandFactory
         root.Options.Add(GlobalOptions.Verbose);
         root.Subcommands.Add(BuildMigrationCommand());
         root.Subcommands.Add(BuildConnectCommand());
+        root.Subcommands.Add(BuildPreflightCommand());
         return root;
     }
 
@@ -62,6 +63,14 @@ public static class CommandFactory
     private static readonly FieldInfo NameBackingField =
         typeof(Symbol).GetField("<Name>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new InvalidOperationException("System.CommandLine Symbol.Name backing field not found; the package version may have changed.");
+
+    private static Command BuildPreflightCommand()
+    {
+        var preflight = new Command("preflight",
+            "Read-only scan: enumerate issues + estimate, gate before running.");
+        preflight.SetAction((parse, ct) => CommandRunner.RunPreflightAsync(parse, ct));
+        return preflight;
+    }
 
     private static void SetRootCommandName(RootCommand root, string name) =>
         NameBackingField.SetValue(root, name);

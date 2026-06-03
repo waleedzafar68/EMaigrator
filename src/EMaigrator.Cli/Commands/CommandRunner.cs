@@ -15,4 +15,7 @@ public static class CommandRunner
         _ = ct;
         return Task.FromResult((int)CliExitCode.UsageError);
     }
+
+    public static Task<int> RunPreflightAsync(ParseResult parse, CancellationToken ct) =>
+        Task.FromResult((int)CliExitCode.UsageError);
 }
