@@ -210,6 +210,57 @@ public sealed class EmaigratorPipelineFixture : IAsyncLifetime
             .Build();
     }
 
+    /// <summary>
+    /// Builds a worker host wired with the REAL production data-seams (AddWorkerDataSeams: the
+    /// EF-backed connection lookup + status writer and the real IMAP ref-lister/hydrator) plus the
+    /// MigrationCompletionConsumer — no per-message test doubles. The connection lookup reads a
+    /// persisted Job + MailboxMigration, so callers must persist those rows before enqueuing.
+    /// </summary>
+    public IHost BuildHostWithRealSeams(IConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var orchestration = config.GetSection("Orchestration").Get<OrchestrationOptions>() ?? new OrchestrationOptions();
+
+        return Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .ConfigureAppConfiguration((_, b) => b.AddConfiguration(config))
+            .ConfigureServices(services =>
+            {
+                services.AddInfrastructure(config, registerBus: false);
+                services.AddImapConnector();
+
+                // Worker non-bus services (copied from WorkerServiceRegistration).
+                services.Configure<OrchestrationOptions>(config.GetSection("Orchestration"));
+                services.AddSingleton<IMigrationControlGate, RedisMigrationControlGate>();
+                services.AddSingleton<IProviderSessionFactory, ProviderSessionFactory>();
+                services.AddSingleton<StreamingCopierFactory>();
+                services.AddSingleton<IJobOrchestrator>(sp =>
+                    new MassTransitJobOrchestrator(sp.GetRequiredService<IBus>()));
+                services.AddHostedService<CrashResumeStartupService>();
+
+                // REAL production seams — no test doubles for the per-message path.
+                services.AddWorkerDataSeams();
+
+                services.AddMassTransit(x =>
+                {
+                    x.AddConsumer<StartMigrationConsumer>();
+                    x.AddConsumer<MigrateFolderConsumer>();
+                    x.AddConsumer<MigrateBatchConsumer>();
+                    x.AddConsumer<MigrateBatchFaultConsumer>();
+                    x.AddConsumer<JobControlConsumer>();
+                    x.AddConsumer<MigrationCompletionConsumer>();
+
+                    x.UsingRabbitMq((ctx, cfg) =>
+                    {
+                        cfg.Host(new Uri(RabbitMqConnectionString));
+                        cfg.PrefetchCount = orchestration.ConsumerPrefetch;
+                        cfg.UseMessageRetry(r => r.Immediate(orchestration.DlqRetryCount));
+                        cfg.ConfigureEndpoints(ctx);
+                    });
+                });
+            })
+            .Build();
+    }
+
     // ── Secret store helper ─────────────────────────────────────────────────────────────────
 
     /// <summary>Stores {"password":"pw"} for a tenant and returns its secretRef (used as the descriptor SecretRef).</summary>
