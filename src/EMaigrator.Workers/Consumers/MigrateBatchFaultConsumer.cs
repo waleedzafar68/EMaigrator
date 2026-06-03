@@ -47,6 +47,13 @@ public sealed partial class MigrateBatchFaultConsumer : IConsumer<Fault<MigrateB
 
         foreach (var reference in batch.SourceMessageRefs)
         {
+            // Failure isolation must not corrupt completed siblings: in a multi-message batch some
+            // refs may already be Migrated/Skipped (copied by an earlier delivery before the poison
+            // threw). Only park not-yet-done refs as Failed — never overwrite a terminal-success
+            // ledger entry, which would silently lose an already-migrated message.
+            if (await _ledger.IsDoneAsync(batch.MailboxMigrationId, reference, ct))
+                continue;
+
             await _ledger.MarkAsync(batch.MailboxMigrationId, reference,
                 batch.SourceFolder, batch.DestFolder, LedgerStatus.Failed, errorCode, ct);
         }

@@ -37,6 +37,14 @@ public sealed class StreamingMessageCopierTests
     private static StreamingMessageCopier Sut(ILedger ledger, IRateLimiter limiter, IDestinationProvider dest)
         => new(ledger, limiter, dest, NullLogger<StreamingMessageCopier>.Instance);
 
+    // Simulates a real destination provider: it opens the message's content stream on demand and
+    // disposes it. (The copier no longer pre-opens the source body — that avoids a double fetch.)
+    private static async Task<WriteResult> WriteOpeningAndDisposing(CanonicalMessage message)
+    {
+        await using var content = await message.OpenContentAsync(CancellationToken.None);
+        return new WriteResult(true, "dest-1");
+    }
+
     [Fact]
     public async Task Skips_when_ledger_says_done_without_writing()
     {
@@ -81,7 +89,7 @@ public sealed class StreamingMessageCopierTests
         limiter.TryAcquireAsync(DestKey, 1, Arg.Any<CancellationToken>()).Returns(true);
         var dest = Substitute.For<IDestinationProvider>();
         dest.WriteMessageAsync(Dst, Arg.Any<CanonicalMessage>(), Arg.Any<CancellationToken>())
-            .Returns(new WriteResult(true, "dest-1"));
+            .Returns(ci => WriteOpeningAndDisposing((CanonicalMessage)ci[1]));
         var stream = new TrackedStream(new byte[] { 9, 9 });
 
         var outcome = await Sut(ledger, limiter, dest)
@@ -89,7 +97,32 @@ public sealed class StreamingMessageCopierTests
 
         outcome.Should().Be(CopyOutcome.Migrated);
         await ledger.Received(1).MarkAsync(Mid, "mid:ok", "Inbox", "Inbox", LedgerStatus.Migrated, null, Arg.Any<CancellationToken>());
+        // The destination opened and disposed the single content stream; the copier never opened it.
         stream.Disposed.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Provider_throttle_write_returns_throttled_without_marking()
+    {
+        var ledger = Substitute.For<ILedger>();
+        ledger.IsDoneAsync(Mid, "mid:429", Arg.Any<CancellationToken>()).Returns(false);
+        var limiter = Substitute.For<IRateLimiter>();
+        limiter.TryAcquireAsync(DestKey, 1, Arg.Any<CancellationToken>()).Returns(true);
+        var dest = Substitute.For<IDestinationProvider>();
+        // A provider-side 429 surfaces as a non-written WriteResult with a throttle error code.
+        dest.WriteMessageAsync(Dst, Arg.Any<CanonicalMessage>(), Arg.Any<CancellationToken>())
+            .Returns(new WriteResult(false, null, "graph:429:throttled"));
+        var stream = new TrackedStream(new byte[] { 1 });
+
+        var outcome = await Sut(ledger, limiter, dest)
+            .CopyAsync(Mid, DestKey, Src, Dst, Msg("mid:429", stream), CancellationToken.None);
+
+        outcome.Should().Be(CopyOutcome.Throttled);
+        // A transient throttle must NOT be checkpointed as terminal — the ledger is never marked, so
+        // the message is retried after the bucket penalty rather than lost as a permanent failure.
+        await ledger.DidNotReceive().MarkAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<LedgerStatus>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

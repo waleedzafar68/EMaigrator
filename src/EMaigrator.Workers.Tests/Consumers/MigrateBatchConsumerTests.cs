@@ -77,7 +77,7 @@ public sealed class MigrateBatchConsumerTests
             new ConnectionDescriptor { Provider = new("imap"), Auth = AuthMethod.ImapBasic, Settings = new Dictionary<string, string>() },
             new ConnectionDescriptor { Provider = new("graph"), Auth = AuthMethod.GraphAppOAuth, Settings = new Dictionary<string, string> { ["accountEmail"] = "dest@biz.com" } }));
 
-        var copierFactory = new StreamingCopierFactory(ledger, limiter);
+        var copierFactory = new StreamingCopierFactory(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance);
 
         var provider = new ServiceCollection()
             .AddSingleton(sessions).AddSingleton(hydrator).AddSingleton(gate).AddSingleton(lookup)

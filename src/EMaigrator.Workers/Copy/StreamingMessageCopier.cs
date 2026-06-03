@@ -47,9 +47,10 @@ public sealed partial class StreamingMessageCopier
         if (!await _limiter.TryAcquireAsync(destKey, 1, ct))
             return CopyOutcome.Throttled;
 
-        // 3) Stream copy. Open the content stream here and guarantee it is disposed; the bytes
-        //    transit memory only — never written to a field, a file, or the ledger (DESIGN.md §6/§10).
-        await using var content = await message.OpenContentAsync(ct);
+        // 3) Stream copy. The destination provider opens the message's content stream on demand and
+        //    disposes it; the bytes transit memory only — never buffered to a field, a file, or the
+        //    ledger (DESIGN.md §6/§10). The copier deliberately does NOT pre-open the stream — doing
+        //    so would fetch the source body twice (once here, once inside the destination).
         WriteResult result = await _dest.WriteMessageAsync(destFolder, message, ct);
 
         var src = sourceFolder.ToString();
@@ -62,10 +63,22 @@ public sealed partial class StreamingMessageCopier
             return CopyOutcome.Migrated;
         }
 
+        // A provider-side throttle (HTTP 429 / rate-limit) is transient — do NOT checkpoint it as a
+        // terminal failure. Signal Throttled so the batch penalizes the bucket and requeues for retry.
+        if (IsProviderThrottle(result.ErrorCode))
+            return CopyOutcome.Throttled;
+
         await _ledger.MarkAsync(mailboxMigrationId, message.IdentityKey, src, dst, LedgerStatus.Failed, result.ErrorCode, ct);
         LogCopyFailed(mailboxMigrationId, dst, result.ErrorCode);
         return CopyOutcome.Failed;
     }
+
+    private static bool IsProviderThrottle(string? errorCode)
+        => errorCode is not null
+           && (errorCode.Contains(":429", StringComparison.Ordinal)
+               || errorCode.Contains("throttl", StringComparison.OrdinalIgnoreCase)
+               || errorCode.Contains("ratelimit", StringComparison.OrdinalIgnoreCase)
+               || errorCode.Contains("toomanyrequests", StringComparison.OrdinalIgnoreCase));
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Message copy failed mailbox={Mailbox} folder={Folder} error={Error}")]
     private partial void LogCopyFailed(Guid mailbox, string folder, string? error);
