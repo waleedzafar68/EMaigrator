@@ -36,8 +36,8 @@ app.MapHealthChecks("/health", new HealthCheckOptions
     },
 }).AllowAnonymous();
 
-// Versioned API surface. No auth middleware / fallback policy yet (Task 2), so endpoints that opt
-// into .AllowAnonymous() (register/login) are reachable without a token.
+// Versioned API surface. The fallback authorization policy (wired above) protects every route;
+// the auth endpoints (register/login) opt out via .AllowAnonymous().
 var v1 = app.MapGroup("/api/v1");
 v1.MapAuthEndpoints();
 
