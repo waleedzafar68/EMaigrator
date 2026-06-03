@@ -170,6 +170,11 @@ public static class ApiServiceCollectionExtensions
 
         services.AddScoped<IMigrationGroupNotifier, SignalRMigrationGroupNotifier>();
 
+        // The bridge runs as a system/MassTransit consumer (no tenant/HttpContext), so it resolves a
+        // mailbox-migration id to its owning Job id via the unfiltered DbContext factory. Singleton is
+        // fine: the impl only captures the (singleton) factory and opens a short-lived context per call.
+        services.AddSingleton<IMailboxJobLookup, MailboxJobLookup>();
+
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();
 
