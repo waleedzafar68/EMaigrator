@@ -40,6 +40,7 @@ app.MapHealthChecks("/health", new HealthCheckOptions
 // the auth endpoints (register/login) opt out via .AllowAnonymous().
 var v1 = app.MapGroup("/api/v1");
 v1.MapAuthEndpoints();
+v1.MapMigrationEndpoints();
 
 app.Run();
 
