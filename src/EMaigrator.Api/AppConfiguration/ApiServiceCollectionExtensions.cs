@@ -3,6 +3,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using EMaigrator.Api.Identity;
+using EMaigrator.Api.Realtime;
 using EMaigrator.Api.Services;
 using EMaigrator.Api.Tenancy;
 using EMaigrator.Connectors.Gmail;
@@ -40,15 +41,19 @@ public static class ApiServiceCollectionExtensions
         // (so registerBus: false); the IJobOrchestrator is still registered against that bus.
         services.AddInfrastructure(config, registerBus: false);
 
-        // The API's own MassTransit/RabbitMQ bus. No consumers yet — the orchestrator only PUBLISHES
-        // pause/resume/cancel and start commands the Workers subsystem consumes; later tasks may add
-        // hub-bridge consumers. ConfigureEndpoints is a no-op here until a consumer is registered.
+        // The API's own MassTransit/RabbitMQ bus. The orchestrator PUBLISHES pause/resume/cancel and
+        // start commands the Workers subsystem consumes; the MigrationProgressBridge consumer subscribes
+        // to the worker-published progress/needs-decision events and fans them out over SignalR.
+        // ConfigureEndpoints binds the bridge to its receive endpoint.
         services.AddMassTransit(x =>
+        {
+            x.AddConsumer<MigrationProgressBridge>();
             x.UsingRabbitMq((ctx, cfg) =>
             {
                 cfg.Host(new Uri(config["Infrastructure:RabbitMqConnectionString"] ?? ""));
                 cfg.ConfigureEndpoints(ctx);
-            }));
+            });
+        });
 
         // Api-local Identity store: its own DbContext on the SAME Postgres database as the engine,
         // but a distinct migrations-history table so the two contexts' migrations never collide.
@@ -150,6 +155,20 @@ public static class ApiServiceCollectionExtensions
 
         // The connection wizard service: stores creds via ISecretStore + tests the connector.
         services.AddScoped<IConnectionService, ConnectionService>();
+
+        // SignalR for the live migration hub, with a conditional Redis backplane for horizontal fan-out
+        // across API nodes (enabled only when Redis:Configuration is set — off in tests, where the single
+        // in-process server delivers in-memory). The notifier (scoped) is what the bridge + endpoints push
+        // through. StackExchange.Redis types flow transitively via the Infrastructure reference.
+        var signalR = services.AddSignalR();
+        var redis = config["Redis:Configuration"];
+        if (!string.IsNullOrEmpty(redis))
+        {
+            signalR.AddStackExchangeRedis(redis, o => o.Configuration.ChannelPrefix =
+                StackExchange.Redis.RedisChannel.Literal("emaigrator-signalr"));
+        }
+
+        services.AddScoped<IMigrationGroupNotifier, SignalRMigrationGroupNotifier>();
 
         // OpenAPI document (exposed at /openapi/* in Development by Program.cs).
         services.AddOpenApi();

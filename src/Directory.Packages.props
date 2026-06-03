@@ -112,6 +112,9 @@
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.8" />
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
+    <!-- Task 6: the Redis SignalR backplane for horizontal hub fan-out across API nodes
+         (conditionally enabled when Redis:Configuration is present; off in tests). -->
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.8" />
   </ItemGroup>
 
   <!-- Plan 08 (API) identity + auth. Microsoft.AspNetCore.Identity.EntityFrameworkCore hosts the

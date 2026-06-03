@@ -12,6 +12,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
     <!-- Task 5: parses the multipart mailbox-scope CSV upload. -->
     <PackageReference Include="CsvHelper" />
+    <!-- Task 6: Redis SignalR backplane (StackExchange.Redis types flow transitively via Infrastructure). -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" />
   </ItemGroup>
 
   <ItemGroup>

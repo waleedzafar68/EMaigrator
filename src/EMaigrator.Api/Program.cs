@@ -44,6 +44,10 @@ v1.MapMigrationEndpoints();
 v1.MapConnectionEndpoints();
 v1.MapScopeEndpoints();
 
+// Live migration progress hub. [Authorize]'d; the SignalR WebSocket handshake carries the bearer token
+// via the access_token query string (wired into the JWT OnMessageReceived handler for /hubs paths).
+app.MapHub<EMaigrator.Api.Realtime.MigrationsHub>("/hubs/migrations");
+
 app.Run();
 
 // Exposed for integration tests (WebApplicationFactory<Program>); real endpoints arrive in later Plan 08 tasks.
