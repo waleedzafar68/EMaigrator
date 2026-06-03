@@ -67,11 +67,18 @@ public sealed partial class MigrateBatchConsumer : IConsumer<MigrateBatch>
         await using var source = await _sessions.CreateSourceAsync(msg.MailboxMigrationId, ct);
         await using var dest = await _sessions.CreateDestinationAsync(msg.MailboxMigrationId, ct);
 
-        var destAccount = conns.Dest.Settings.TryGetValue("accountEmail", out var acct) ? acct : msg.DestFolder;
+        // Rate-limit bucket is keyed per destination ACCOUNT — never fall back to a folder path
+        // (that would split one account's budget across folders / collide across accounts).
+        if (!conns.Dest.Settings.TryGetValue("accountEmail", out var destAccount) || string.IsNullOrWhiteSpace(destAccount))
+        {
+            throw new InvalidOperationException(
+                "Destination connection is missing the required 'accountEmail' setting used for rate-limit keying.");
+        }
+
         var destKey = new RateLimitKey(dest.Id, destAccount);
         var sourceFolder = FolderPath.Parse(msg.SourceFolder);
         var destFolder = FolderPath.Parse(msg.DestFolder);
-        var copier = _copierFactory.For(dest);
+        var copier = _copierFactory.For(_ledger, _limiter, dest);
 
         foreach (var reference in msg.SourceMessageRefs)
         {
