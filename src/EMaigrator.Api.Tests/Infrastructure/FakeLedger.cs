@@ -35,6 +35,10 @@ public sealed class FakeLedger : ILedger
 
     public Task<LedgerCounts> GetCountsAsync(Guid mailboxMigrationId, CancellationToken ct) =>
         Task.FromResult(new LedgerCounts(3, 1, 1, 0));
+
+    public Task SeedPendingAsync(
+        Guid mailboxMigrationId, IEnumerable<(string IdentityKey, string SourceFolder, string DestFolder)> messages,
+        CancellationToken ct) => Task.CompletedTask;
 }
 
 /// <summary>

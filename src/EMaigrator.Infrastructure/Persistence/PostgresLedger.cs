@@ -97,6 +97,64 @@ public sealed class PostgresLedger : ILedger
         }
     }
 
+    public async Task SeedPendingAsync(Guid mailboxMigrationId,
+        IEnumerable<(string IdentityKey, string SourceFolder, string DestFolder)> messages,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(messages);
+        var list = messages as ICollection<(string IdentityKey, string SourceFolder, string DestFolder)>
+                   ?? messages.ToList();
+        if (list.Count == 0)
+        {
+            return;
+        }
+
+        await using var ctx = await _factory.CreateDbContextAsync(ct).ConfigureAwait(false);
+
+        // Read the identity keys that already have a row for this migration. Existing rows (any
+        // status — Pending/Migrated/Skipped/Failed) are left untouched: seeding NEVER downgrades a
+        // done row back to Pending. Only genuinely-absent messages get a fresh Pending row.
+        var keys = list.Select(m => m.IdentityKey).ToList();
+        var existing = await ctx.LedgerEntries
+            .Where(r => r.MailboxMigrationId == mailboxMigrationId && keys.Contains(r.IdentityKey))
+            .Select(r => r.IdentityKey)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+        var seen = new HashSet<string>(existing, StringComparer.Ordinal);
+
+        foreach (var (identityKey, sourceFolder, destFolder) in list)
+        {
+            // `seen` also guards against the same identityKey appearing twice within this batch.
+            if (!seen.Add(identityKey))
+            {
+                continue;
+            }
+
+            ctx.LedgerEntries.Add(new LedgerEntryRow
+            {
+                MailboxMigrationId = mailboxMigrationId,
+                IdentityKey = identityKey,
+                SourceFolder = sourceFolder,
+                DestFolder = destFolder,
+                Status = LedgerStatus.Pending,
+                ErrorCode = null,
+                UpdatedAt = DateTimeOffset.UtcNow,
+            });
+        }
+
+        try
+        {
+            await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+        }
+        catch (DbUpdateException)
+        {
+            // A concurrent seeder inserted one of these rows between our read and Save, hitting the
+            // UNIQUE(MailboxMigrationId, IdentityKey) index. The losing rows already exist (possibly
+            // already done) and must NOT be downgraded — so just drop our pending inserts.
+            ctx.ChangeTracker.Clear();
+        }
+    }
+
     public async Task<LedgerCounts> GetCountsAsync(Guid mailboxMigrationId, CancellationToken ct)
     {
         await using var ctx = await _factory.CreateDbContextAsync(ct).ConfigureAwait(false);

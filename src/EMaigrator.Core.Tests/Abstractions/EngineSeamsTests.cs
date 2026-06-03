@@ -37,6 +37,21 @@ public class EngineSeamsTests
                 es.Count(e => e.Status == LedgerStatus.Failed),
                 es.Count(e => e.Status == LedgerStatus.Pending)));
         }
+
+        public Task SeedPendingAsync(Guid id,
+            IEnumerable<(string IdentityKey, string SourceFolder, string DestFolder)> messages, CancellationToken ct)
+        {
+            foreach (var (key, src, dst) in messages)
+            {
+                // Insert-if-absent; never downgrade an already-recorded row.
+                if (!_store.ContainsKey((id, key)))
+                {
+                    _store[(id, key)] = new LedgerEntry(id, key, src, dst, LedgerStatus.Pending, null, DateTimeOffset.UnixEpoch);
+                }
+            }
+
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]
