@@ -14,6 +14,7 @@ public static class CommandFactory
         root.Options.Add(GlobalOptions.Json);
         root.Options.Add(GlobalOptions.Verbose);
         root.Subcommands.Add(BuildMigrationCommand());
+        root.Subcommands.Add(BuildConnectCommand());
         return root;
     }
 
@@ -38,6 +39,20 @@ public static class CommandFactory
 
         migration.Subcommands.Add(newCmd);
         return migration;
+    }
+
+    private static Command BuildConnectCommand()
+    {
+        var connect = new Command("connect", "Test provider connections.");
+        var test = new Command("test", "Test a side's connection (fail fast before migrating).");
+        var sideOpt = new Option<string>("--side")
+        { Description = "Which side to test: from|to.", Required = true };
+        sideOpt.AcceptOnlyFromAmong("from", "to");
+        test.Options.Add(sideOpt);
+        test.SetAction((parse, ct) =>
+            CommandRunner.RunConnectTestAsync(parse, sideOpt, ct));
+        connect.Subcommands.Add(test);
+        return connect;
     }
 
     // System.CommandLine 2.0.0-beta5 makes Symbol.Name get-only and defaults a RootCommand's name
