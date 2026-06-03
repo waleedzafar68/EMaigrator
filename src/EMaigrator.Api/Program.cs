@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Text.Json;
 using EMaigrator.Api.AppConfiguration;
+using EMaigrator.Api.Endpoints;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -28,6 +29,11 @@ app.MapHealthChecks("/health", new HealthCheckOptions
         }));
     },
 }).AllowAnonymous();
+
+// Versioned API surface. No auth middleware / fallback policy yet (Task 2), so endpoints that opt
+// into .AllowAnonymous() (register/login) are reachable without a token.
+var v1 = app.MapGroup("/api/v1");
+v1.MapAuthEndpoints();
 
 app.Run();
 

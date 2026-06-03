@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Security.Cryptography;
 using System.Threading.Tasks;
+using EMaigrator.Api.Identity;
 using EMaigrator.Infrastructure;
 using EMaigrator.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,15 @@ public sealed class ApiInfraFixture : IAsyncLifetime
         var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
         await using var ctx = factory.CreateDbContext();
         await ctx.Database.MigrateAsync();
+
+        // Also migrate the Api-local Identity store against the SAME container, using its distinct
+        // migrations-history table so the two contexts' migrations coexist in one database.
+        var idOptions = new DbContextOptionsBuilder<AppIdentityDbContext>()
+            .UseNpgsql(PostgresConnectionString,
+                npg => npg.MigrationsHistoryTable("__EFMigrationsHistory_Identity"))
+            .Options;
+        await using var idCtx = new AppIdentityDbContext(idOptions);
+        await idCtx.Database.MigrateAsync();
     }
 
     public async Task DisposeAsync()
@@ -83,6 +93,10 @@ public sealed class ApiInfraFixture : IAsyncLifetime
         ["Infrastructure:SecretStore:KeyRef"] = MasterKey,
         ["Infrastructure:RateLimit:Buckets:default:RefillPerSecond"] = "1000",
         ["Infrastructure:RateLimit:Buckets:default:Burst"] = "1000",
+        // JWT issuance: a fixed long dev signing key (≥ 32 bytes for HMAC-SHA256) + issuer/audience.
+        ["Jwt:SigningKey"] = "emaigrator-dev-signing-key-please-change-in-prod-0123456789",
+        ["Jwt:Issuer"] = "emaigrator",
+        ["Jwt:Audience"] = "emaigrator",
     };
 }
 

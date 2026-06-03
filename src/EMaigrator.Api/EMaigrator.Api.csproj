@@ -4,6 +4,12 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="MassTransit" />
     <PackageReference Include="MassTransit.RabbitMQ" />
+    <!-- Api-local Identity store (own DbContext / migrations-history table) + JWT auth.
+         EntityFrameworkCore.Design is needed by `dotnet ef` to build AppIdentityDbContext at
+         design time (the migration lives under Identity/Migrations in this project). -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
   </ItemGroup>
 
   <ItemGroup>
