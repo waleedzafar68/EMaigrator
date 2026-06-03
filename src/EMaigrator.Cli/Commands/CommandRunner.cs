@@ -18,4 +18,10 @@ public static class CommandRunner
 
     public static Task<int> RunPreflightAsync(ParseResult parse, CancellationToken ct) =>
         Task.FromResult((int)CliExitCode.UsageError);
+
+    public static Task<int> RunMigrationAsync(ParseResult parse, Option<Guid?> idOpt, bool resume, CancellationToken ct) =>
+        Task.FromResult((int)CliExitCode.UsageError);
+
+    public static Task<int> RunMigrationAsync(ParseResult parse, Option<Guid> idOpt, bool resume, CancellationToken ct) =>
+        Task.FromResult((int)CliExitCode.UsageError);
 }

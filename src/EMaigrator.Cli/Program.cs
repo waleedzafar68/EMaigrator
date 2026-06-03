@@ -16,6 +16,8 @@ public static class CommandFactory
         root.Subcommands.Add(BuildMigrationCommand());
         root.Subcommands.Add(BuildConnectCommand());
         root.Subcommands.Add(BuildPreflightCommand());
+        root.Subcommands.Add(BuildRunCommand());
+        root.Subcommands.Add(BuildResumeCommand());
         return root;
     }
 
@@ -54,6 +56,26 @@ public static class CommandFactory
             CommandRunner.RunConnectTestAsync(parse, sideOpt, ct));
         connect.Subcommands.Add(test);
         return connect;
+    }
+
+    private static Command BuildRunCommand()
+    {
+        var run = new Command("run", "Run the migration to completion (self-host in-process worker).");
+        var idOpt = new Option<Guid?>("--id")
+        { Description = "Existing mailbox-migration id; omit to create from the profile." };
+        run.Options.Add(idOpt);
+        run.SetAction((parse, ct) => CommandRunner.RunMigrationAsync(parse, idOpt, resume: false, ct));
+        return run;
+    }
+
+    private static Command BuildResumeCommand()
+    {
+        var resume = new Command("resume", "Re-enqueue not-done items for an existing migration.");
+        var idOpt = new Option<Guid>("--id")
+        { Description = "Existing mailbox-migration id to resume.", Required = true };
+        resume.Options.Add(idOpt);
+        resume.SetAction((parse, ct) => CommandRunner.RunMigrationAsync(parse, idOpt, resume: true, ct));
+        return resume;
     }
 
     // System.CommandLine 2.0.0-beta5 makes Symbol.Name get-only and defaults a RootCommand's name
