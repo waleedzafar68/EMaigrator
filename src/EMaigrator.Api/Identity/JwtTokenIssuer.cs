@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -18,6 +17,9 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
 {
     /// <summary>The claim type carrying the user's tenant id.</summary>
     public const string TenantClaim = "tenant_id";
+
+    // JwtSecurityTokenHandler is documented stateless/thread-safe, so a single instance is reused.
+    private static readonly JwtSecurityTokenHandler TokenHandler = new();
 
     private readonly JwtOptions _options;
 
@@ -52,7 +54,7 @@ public sealed class JwtTokenIssuer : IJwtTokenIssuer
             expires: expiresAt.UtcDateTime,
             signingCredentials: credentials);
 
-        var compact = new JwtSecurityTokenHandler().WriteToken(token);
+        var compact = TokenHandler.WriteToken(token);
         return (compact, expiresAt);
     }
 }

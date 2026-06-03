@@ -56,13 +56,8 @@ public static class AuthEndpoints
 
         var tenantId = Guid.NewGuid();
 
-        // Tenant lives in the engine context (no query filter → writable anonymously).
-        await using (var db = await dbFactory.CreateDbContextAsync().ConfigureAwait(false))
-        {
-            db.Tenants.Add(new Tenant { Id = tenantId, Name = request.OrganizationName });
-            await db.SaveChangesAsync().ConfigureAwait(false);
-        }
-
+        // Create the user first: the common failure (duplicate email, etc.) happens here, so we
+        // must not write a Tenant row that would then be orphaned.
         var user = new ApplicationUser
         {
             Id = Guid.NewGuid(),
@@ -78,6 +73,21 @@ public static class AuthEndpoints
                 .GroupBy(e => e.Code, StringComparer.Ordinal)
                 .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray(), StringComparer.Ordinal);
             return Results.ValidationProblem(errors);
+        }
+
+        // Only after the user exists, write the Tenant row in the engine context (no query filter →
+        // writable anonymously). If this throws, best-effort delete the just-created user so we never
+        // leave a user without a tenant, then let the exception propagate.
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync().ConfigureAwait(false);
+            db.Tenants.Add(new Tenant { Id = tenantId, Name = request.OrganizationName });
+            await db.SaveChangesAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            await userManager.DeleteAsync(user).ConfigureAwait(false);
+            throw;
         }
 
         return Results.Created($"/api/v1/users/{user.Id}", new { id = user.Id, tenantId });
