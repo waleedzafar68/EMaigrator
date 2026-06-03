@@ -8,13 +8,15 @@
 
   <ItemGroup>
     <!-- The CLI is a thin composition layer over Core abstractions + Infrastructure adapters, plus
-         the three v1 connector plugins. It composes its own host (no reference to EMaigrator.Workers,
-         which brings its own Program/host). -->
+         the three v1 connector plugins. It also references EMaigrator.Workers as a library to compose
+         an in-process single-node worker for `run`; the CLI keeps its own Program.Main entry point
+         (EMaigrator.Workers.IntegrationTests references Workers the same way). -->
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
     <ProjectReference Include="..\EMaigrator.Infrastructure\EMaigrator.Infrastructure.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Graph\EMaigrator.Connectors.Graph.csproj" />
     <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
+    <ProjectReference Include="..\EMaigrator.Workers\EMaigrator.Workers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
