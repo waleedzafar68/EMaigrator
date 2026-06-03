@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMaigrator.Cli.Output;
 using EMaigrator.Cli.Profile;
 using EMaigrator.Cli.Secrets;
@@ -33,9 +34,11 @@ public static class PreflightCommand
         string toRef = await secretResolver.ResolveAsync(MigrationSide.To, profile.To, profile.TenantId, ct);
 
         var fromBundle = new SecretBundle(
-            new Dictionary<string, string> { ["secret"] = await secretStore.RetrieveAsync(fromRef, ct) });
+            JsonSerializer.Deserialize<Dictionary<string, string>>(await secretStore.RetrieveAsync(fromRef, ct))
+            ?? new Dictionary<string, string>());
         var toBundle = new SecretBundle(
-            new Dictionary<string, string> { ["secret"] = await secretStore.RetrieveAsync(toRef, ct) });
+            JsonSerializer.Deserialize<Dictionary<string, string>>(await secretStore.RetrieveAsync(toRef, ct))
+            ?? new Dictionary<string, string>());
 
         await using ISourceProvider source =
             fromPlugin.CreateSource(ConnectionBuilder.BuildDescriptor(profile.From, fromRef), fromBundle);

@@ -37,7 +37,7 @@ public class ConnectTestCommandTests
     {
         var store = Substitute.For<ISecretStore>();
         store.StoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("ref-x");
-        store.RetrieveAsync("ref-x", Arg.Any<CancellationToken>()).Returns("plaintext-pw");
+        store.RetrieveAsync("ref-x", Arg.Any<CancellationToken>()).Returns("{\"password\":\"plaintext-pw\"}");
         var reader = Substitute.For<IConsoleSecretReader>();
         reader.ReadSecret(Arg.Any<string>()).Returns("plaintext-pw");
         return (new SecretResolver(store, reader), store);

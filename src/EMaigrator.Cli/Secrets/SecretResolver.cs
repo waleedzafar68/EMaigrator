@@ -31,6 +31,7 @@ public sealed class SecretResolver(ISecretStore secretStore, IConsoleSecretReade
             ? await File.ReadAllTextAsync(raw, ct)
             : raw;
 
-        return await secretStore.StoreAsync(tenantId, plaintext, ct);
+        string blob = SecretBundleShape.ForAuth(connection.Auth, plaintext);
+        return await secretStore.StoreAsync(tenantId, blob, ct);
     }
 }

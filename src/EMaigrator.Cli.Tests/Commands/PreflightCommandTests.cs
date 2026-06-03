@@ -40,7 +40,7 @@ public class PreflightCommandTests
     {
         store = Substitute.For<ISecretStore>();
         store.StoreAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("ref-x");
-        store.RetrieveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("pw");
+        store.RetrieveAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns("{\"password\":\"pw\"}");
         var reader = Substitute.For<IConsoleSecretReader>();
         reader.ReadSecret(Arg.Any<string>()).Returns("pw");
         return new SecretResolver(store, reader);

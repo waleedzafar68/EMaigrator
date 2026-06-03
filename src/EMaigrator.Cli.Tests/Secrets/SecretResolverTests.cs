@@ -39,7 +39,9 @@ public class SecretResolverTests
                 MigrationSide.From, Conn(), tenantId: "t1", CancellationToken.None);
 
             secretRef.Should().Be("ref-123");
-            await store.Received(1).StoreAsync("t1", "env-password", Arg.Any<CancellationToken>());
+            await store.Received(1).StoreAsync("t1",
+                Arg.Is<string>(s => s.Contains("env-password") && s.Contains("password")),
+                Arg.Any<CancellationToken>());
             reader.DidNotReceiveWithAnyArgs().ReadSecret(default!);
         }
         finally { Environment.SetEnvironmentVariable("EMAIGRATOR_SECRET_FROM", null); }
@@ -58,7 +60,9 @@ public class SecretResolverTests
             MigrationSide.To, Conn(), tenantId: "t1", CancellationToken.None);
 
         secretRef.Should().Be("ref-prompted");
-        await store.Received(1).StoreAsync("t1", "typed-password", Arg.Any<CancellationToken>());
+        await store.Received(1).StoreAsync("t1",
+            Arg.Is<string>(s => s.Contains("typed-password")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

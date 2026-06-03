@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EMaigrator.Cli.Output;
 using EMaigrator.Cli.Profile;
 using EMaigrator.Cli.Secrets;
@@ -29,8 +30,10 @@ public static class ConnectTestCommand
         string secretRef = await secretResolver.ResolveAsync(side, conn, profile.TenantId, ct);
         try
         {
-            string plaintext = await secretStore.RetrieveAsync(secretRef, ct);
-            var bundle = new SecretBundle(new Dictionary<string, string> { ["secret"] = plaintext });
+            string stored = await secretStore.RetrieveAsync(secretRef, ct);
+            var values = JsonSerializer.Deserialize<Dictionary<string, string>>(stored)
+                         ?? new Dictionary<string, string>();
+            var bundle = new SecretBundle(values);
             ConnectionDescriptor descriptor = ConnectionBuilder.BuildDescriptor(conn, secretRef);
 
             ConnectionTestResult result = side == MigrationSide.From
