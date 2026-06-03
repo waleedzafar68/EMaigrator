@@ -105,4 +105,12 @@
     <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.69.0.3742" />
     <PackageVersion Include="Google.Apis.Auth" Version="1.69.0" />
   </ItemGroup>
+
+  <!-- Plan 08 (API) test stack. Microsoft.AspNetCore.Mvc.Testing boots the in-process server via
+       WebApplicationFactory<Program>; Microsoft.AspNetCore.SignalR.Client drives the hub from the
+       integration tests (Task 6 onward). Pinned to the .NET 10 servicing line (10.0.8). -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
+  </ItemGroup>
 </Project>

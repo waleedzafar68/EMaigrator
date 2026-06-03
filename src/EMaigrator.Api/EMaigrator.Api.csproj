@@ -1,16 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
-  <PropertyGroup>
-  </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="MassTransit" />
+    <PackageReference Include="MassTransit.RabbitMQ" />
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The API is a thin composition layer over Core abstractions + Infrastructure adapters, plus
+         the three v1 connector plugins. It owns its own MassTransit bus, so it does NOT reference
+         EMaigrator.Workers (which brings its own Program/host). -->
     <ProjectReference Include="..\EMaigrator.Core\EMaigrator.Core.csproj" />
     <ProjectReference Include="..\EMaigrator.Infrastructure\EMaigrator.Infrastructure.csproj" />
-    <ProjectReference Include="..\EMaigrator.Workers\EMaigrator.Workers.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Graph\EMaigrator.Connectors.Graph.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
   </ItemGroup>
 
 </Project>

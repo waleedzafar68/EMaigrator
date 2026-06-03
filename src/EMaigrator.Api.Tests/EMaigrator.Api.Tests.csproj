@@ -20,8 +20,19 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Plan 08 (API) test stack: assertions, mocking, the in-process server harness, the
+         SignalR client (used from Task 6 onward), and the three Testcontainers backends the
+         real Infrastructure composition (Postgres + Redis + RabbitMQ) requires to boot green. -->
     <PackageReference Include="FluentAssertions" />
     <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
+    <PackageReference Include="Testcontainers.Redis" />
+    <PackageReference Include="Testcontainers.RabbitMq" />
   </ItemGroup>
 
 </Project>
