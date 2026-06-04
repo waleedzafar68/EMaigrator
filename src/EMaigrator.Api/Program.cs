@@ -1,14 +1,36 @@
 using System.Linq;
 using System.Text.Json;
 using EMaigrator.Api.AppConfiguration;
+using EMaigrator.Api.Data;
 using EMaigrator.Api.Endpoints;
+using EMaigrator.Api.Identity;
+using EMaigrator.Infrastructure.Data;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEMaigratorApi(builder.Configuration);
 
 var app = builder.Build();
+
+// Apply EF migrations for all three DbContexts at startup so a fresh deployment has a ready schema
+// instead of 500ing every request. Each context owns a separate __EFMigrationsHistory* table: the engine
+// context is created via its factory (no tenancy dependency), the Api-local Identity + side contexts are
+// resolved scoped. MigrateAsync is idempotent (a no-op when current). Multi-instance rollouts that prefer
+// applying migrations out-of-band can remove this, but by default a fresh DB must not 500 every request.
+await using (var migrationScope = app.Services.CreateAsyncScope())
+{
+    var sp = migrationScope.ServiceProvider;
+    var engineFactory = sp.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
+    await using (var engineCtx = await engineFactory.CreateDbContextAsync())
+    {
+        await engineCtx.Database.MigrateAsync();
+    }
+
+    await sp.GetRequiredService<AppIdentityDbContext>().Database.MigrateAsync();
+    await sp.GetRequiredService<ApiSideContext>().Database.MigrateAsync();
+}
 
 // Security headers run first so every response — including errors, 404s, and short-circuited
 // CORS preflights — carries nosniff/DENY/Referrer-Policy/CSP (and HSTS over HTTPS).
