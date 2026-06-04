@@ -3,6 +3,7 @@ import { AppShell } from "../components/AppShell";
 import { Dashboard } from "../routes/Dashboard";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
 import { StepFromTo } from "../wizard/StepFromTo";
+import { StepConnect } from "../wizard/StepConnect";
 
 export const router = createBrowserRouter([
   {
@@ -16,7 +17,8 @@ export const router = createBrowserRouter([
         element: <WizardShell />,
         children: [
           { path: "from-to", element: <StepFromTo /> },
-          // step routes added in Tasks 6-10
+          { path: "connect/:side", element: <StepConnect /> },
+          // step routes added in Tasks 7-10
         ],
       },
     ],
