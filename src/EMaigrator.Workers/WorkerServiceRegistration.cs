@@ -60,7 +60,10 @@ public static class WorkerServiceRegistration
                     var host = config.GetConnectionString("RabbitMq") ?? "amqp://guest:guest@localhost:5672";
                     cfg.Host(new Uri(host));
                     cfg.PrefetchCount = orchestration.ConsumerPrefetch;
-                    // Immediate retries, then the message is faulted → DLQ → MigrateBatchFaultConsumer.
+                    // Immediate retries (no backoff), then the message is faulted → DLQ → MigrateBatchFaultConsumer.
+                    // On a provider 429 the bucket penalty is the only pacing — the Retry-After is dropped
+                    // because WriteResult has no field for it. Delayed/interval retry is a deferred follow-up
+                    // (needs a CONTRACTS change). See docs/KNOWN-ISSUES.md.
                     cfg.UseMessageRetry(r => r.Immediate(orchestration.DlqRetryCount));
                     cfg.ConfigureEndpoints(ctx);
                 });

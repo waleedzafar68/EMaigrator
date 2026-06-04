@@ -31,6 +31,11 @@ public sealed class MigrationCompletionConsumer : IConsumer<MigrationProgressEve
         var counts = await _ledger.GetCountsAsync(mid, ct);
         if (counts.Pending == 0)
         {
+            // Known residual race (docs/KNOWN-ISSUES.md): on a `resume`, StartMigrationConsumer re-seeds
+            // Pending, so a redelivered progress event can find a transient Pending==0 here and write a
+            // premature terminal status — misleading status only; NO data loss/duplication (copies are
+            // ledger-idempotent and SetTerminalAsync is idempotent). Do NOT "fix" by dropping the
+            // seed-Pending-up-front design; the correct fix gates completion on a fan-out-complete marker.
             await _status.SetTerminalAsync(mid, counts, ct);
         }
     }
