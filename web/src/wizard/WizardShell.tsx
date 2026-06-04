@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
-import { Outlet, useNavigate, useParams } from "react-router-dom";
-import { createMigration, deleteMigration } from "../api/migrations";
+import { useEffect, useRef, useState } from "react";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { createMigration, deleteMigration, getMigration } from "../api/migrations";
 import type { MigrationDto } from "../api/types";
-import { useDraft } from "./useDraft";
 import { Stepper } from "./Stepper";
 
 export function NewMigrationRedirect() {
@@ -22,8 +21,14 @@ export function canBatchFor(migration: MigrationDto): boolean {
 
 export function WizardShell() {
   const { id = "" } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
-  const { migration } = useDraft(id);
+  const [migration, setMigration] = useState<MigrationDto | null>(null);
+  useEffect(() => {
+    let active = true;
+    void getMigration(id).then((m) => { if (active) setMigration(m); });
+    return () => { active = false; };
+  }, [id, location.pathname]); // re-fetch on each step so children see fresh server state
   if (!migration) return <div role="status" aria-label="Loading" className="h-24 animate-pulse rounded bg-surface-2" />;
   return (
     <div className="mx-auto max-w-[760px]">
