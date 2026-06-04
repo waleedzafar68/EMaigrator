@@ -13,5 +13,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
+    environmentOptions: {
+      jsdom: {
+        url: "http://localhost",
+      },
+    },
   },
 });

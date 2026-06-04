@@ -1,12 +1,13 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import App from "./App";
+import * as api from "./api/migrations";
 
 describe("App", () => {
-  it("renders the EMaigrator heading", () => {
+  afterEach(() => vi.restoreAllMocks());
+  it("renders the app shell with the Migrations header", async () => {
+    vi.spyOn(api, "listMigrations").mockResolvedValue([]);
     render(<App />);
-    expect(
-      screen.getByRole("heading", { name: /emaigrator/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: /migrations/i })).toBeInTheDocument();
   });
 });

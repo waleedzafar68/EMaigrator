@@ -1,7 +1,11 @@
+import { RouterProvider } from "react-router-dom";
+import { ThemeProvider } from "./app/ThemeProvider";
+import { router } from "./app/router";
+
 export default function App() {
   return (
-    <main className="min-h-screen flex items-center justify-center">
-      <h1 className="text-3xl font-semibold">EMaigrator</h1>
-    </main>
+    <ThemeProvider>
+      <RouterProvider router={router} />
+    </ThemeProvider>
   );
 }
