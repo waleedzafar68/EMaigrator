@@ -6,6 +6,7 @@ import { StepFromTo } from "../wizard/StepFromTo";
 import { StepConnect } from "../wizard/StepConnect";
 import { StepScope } from "../wizard/StepScope";
 import { StepReview } from "../wizard/StepReview";
+import { StepRun } from "../wizard/StepRun";
 
 export const router = createBrowserRouter([
   {
@@ -22,7 +23,8 @@ export const router = createBrowserRouter([
           { path: "connect/:side", element: <StepConnect /> },
           { path: "scope", element: <StepScope /> },
           { path: "review", element: <StepReview /> },
-          // step routes added in Tasks 9-10
+          { path: "run", element: <StepRun /> },
+          // step routes added in Task 10
         ],
       },
     ],
