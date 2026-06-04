@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "scan:bundle": "node scripts/scan-bundle.mjs"
   },
   "dependencies": {
     "@microsoft/signalr": "^8.0.17",

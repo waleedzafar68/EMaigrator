@@ -16,7 +16,7 @@ export function AuditTable({ entries }: { entries: AuditEntryDto[] }) {
       <tbody>
         {entries.map((e, i) => (
           <tr key={i} className="border-t border-border">
-            {/* React escapes text children by default — no dangerouslySetInnerHTML anywhere */}
+            {/* React escapes text children by default — raw HTML is never injected */}
             <td>{e.subject ?? "(hidden)"}</td>
             <td className="mono">{e.messageDate.slice(0, 10)}</td>
             <td className="mono">{e.sourceFolder}</td>
