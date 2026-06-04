@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { Dashboard } from "../routes/Dashboard";
+import { Results } from "../routes/Results";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
 import { StepFromTo } from "../wizard/StepFromTo";
 import { StepConnect } from "../wizard/StepConnect";
@@ -24,9 +25,9 @@ export const router = createBrowserRouter([
           { path: "scope", element: <StepScope /> },
           { path: "review", element: <StepReview /> },
           { path: "run", element: <StepRun /> },
-          // step routes added in Task 10
         ],
       },
+      { path: "migrations/:id/results", element: <Results /> },
     ],
   },
 ]);
