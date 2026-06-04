@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "../components/AppShell";
 import { Dashboard } from "../routes/Dashboard";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
+import { StepFromTo } from "../wizard/StepFromTo";
 
 export const router = createBrowserRouter([
   {
@@ -14,7 +15,8 @@ export const router = createBrowserRouter([
         path: "migrations/:id",
         element: <WizardShell />,
         children: [
-          // step routes added in Tasks 5-10
+          { path: "from-to", element: <StepFromTo /> },
+          // step routes added in Tasks 6-10
         ],
       },
     ],
