@@ -4,6 +4,7 @@ import { Dashboard } from "../routes/Dashboard";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
 import { StepFromTo } from "../wizard/StepFromTo";
 import { StepConnect } from "../wizard/StepConnect";
+import { StepScope } from "../wizard/StepScope";
 
 export const router = createBrowserRouter([
   {
@@ -18,7 +19,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "from-to", element: <StepFromTo /> },
           { path: "connect/:side", element: <StepConnect /> },
-          // step routes added in Tasks 7-10
+          { path: "scope", element: <StepScope /> },
+          // step routes added in Tasks 8-10
         ],
       },
     ],
