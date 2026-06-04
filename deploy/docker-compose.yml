@@ -50,13 +50,21 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
+    # Keys map to what the app binds: AddInfrastructure reads the `Infrastructure:` section; the API's
+    # own MassTransit bus reads `Infrastructure:RabbitMqConnectionString`; the SignalR backplane reads
+    # `Redis:Configuration`. `__` is the .NET config section separator.
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-emaigrator};Username=${POSTGRES_USER:-emaigrator};Password=${POSTGRES_PASSWORD:-emaigrator}
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Username: ${RABBITMQ_USER:-emaigrator}
-      RabbitMq__Password: ${RABBITMQ_PASSWORD:-emaigrator}
+      Infrastructure__PostgresConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-emaigrator};Username=${POSTGRES_USER:-emaigrator};Password=${POSTGRES_PASSWORD:-emaigrator}
+      Infrastructure__RedisConnectionString: redis:6379
+      Infrastructure__RabbitMqConnectionString: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
       Redis__Configuration: redis:6379
+      # Dev defaults — OVERRIDE IN PRODUCTION. The secret master key MUST be identical on api + workers
+      # (the api wraps provider credentials; the workers unwrap them). CORS origins for a browser SPA
+      # must be supplied via Cors__AllowedOrigins__0 etc.
+      Infrastructure__SecretStore__Mode: LocalKey
+      Infrastructure__SecretStore__KeyRef: ${SECRET_MASTER_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:-emaigrator-dev-signing-key-change-me-in-production-0123456789}
     ports:
       - "8080:8080"
     depends_on:
@@ -71,13 +79,17 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.workers
+    # AddInfrastructure reads the `Infrastructure:` section, but the Workers bus reads its broker from
+    # `ConnectionStrings:RabbitMq` (a different key than the API's bus). The secret master key MUST match
+    # the api service so wrapped provider credentials can be unwrapped here.
     environment:
       DOTNET_ENVIRONMENT: ${DOTNET_ENVIRONMENT:-Production}
-      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-emaigrator};Username=${POSTGRES_USER:-emaigrator};Password=${POSTGRES_PASSWORD:-emaigrator}
-      RabbitMq__Host: rabbitmq
-      RabbitMq__Username: ${RABBITMQ_USER:-emaigrator}
-      RabbitMq__Password: ${RABBITMQ_PASSWORD:-emaigrator}
-      Redis__Configuration: redis:6379
+      Infrastructure__PostgresConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-emaigrator};Username=${POSTGRES_USER:-emaigrator};Password=${POSTGRES_PASSWORD:-emaigrator}
+      Infrastructure__RedisConnectionString: redis:6379
+      Infrastructure__RabbitMqConnectionString: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
+      ConnectionStrings__RabbitMq: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
+      Infrastructure__SecretStore__Mode: LocalKey
+      Infrastructure__SecretStore__KeyRef: ${SECRET_MASTER_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
     depends_on:
       postgres:
         condition: service_healthy
