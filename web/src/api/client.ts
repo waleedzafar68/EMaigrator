@@ -13,6 +13,16 @@ export class ApiError extends Error {
 
 const BASE = "/api/v1";
 
+let onUnauthorized: (() => void) | null = null;
+
+/**
+ * Register a callback fired whenever the API answers 401 (e.g. redirect to the login page).
+ * The rejection is still thrown so individual callers can handle it too.
+ */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const hasBody = init.body !== undefined && init.body !== null;
   const res = await fetch(`${BASE}${path}`, {
@@ -23,7 +33,11 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
       ...(init.headers ?? {}),
     },
   });
-  if (!res.ok) throw await toApiError(res);
+  if (!res.ok) {
+    const err = await toApiError(res);
+    if (res.status === 401) onUnauthorized?.();
+    throw err;
+  }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;

@@ -52,7 +52,10 @@ export function Dashboard() {
   );
 
   useEffect(() => {
-    void listMigrations().then(setItems);
+    // On 401 the client redirects to /login; clear the loading state so we never hang on the skeleton.
+    void listMigrations()
+      .then(setItems)
+      .catch(() => setItems([]));
   }, []);
 
   function setAndPersist(l: Layout) {

@@ -1,6 +1,8 @@
 import { createBrowserRouter } from "react-router-dom";
+import { setUnauthorizedHandler } from "../api/client";
 import { AppShell } from "../components/AppShell";
 import { Dashboard } from "../routes/Dashboard";
+import { Login } from "../routes/Login";
 import { Results } from "../routes/Results";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
 import { StepFromTo } from "../wizard/StepFromTo";
@@ -10,6 +12,7 @@ import { StepReview } from "../wizard/StepReview";
 import { StepRun } from "../wizard/StepRun";
 
 export const router = createBrowserRouter([
+  { path: "/login", element: <Login /> },
   {
     path: "/",
     element: <AppShell />,
@@ -31,3 +34,10 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
+// Any API 401 sends the user to the login page (unless they're already there — e.g. a failed login).
+setUnauthorizedHandler(() => {
+  if (router.state.location.pathname !== "/login") {
+    void router.navigate("/login");
+  }
+});
