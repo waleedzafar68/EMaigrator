@@ -44,3 +44,6 @@ playwright-report/
 
 # ---- Parallel-execution worktrees (machine-local; not shared) ----
 .worktrees/
+
+# ---- Local docker-compose overrides (machine-local; e.g. host-port remaps) ----
+deploy/docker-compose.local.yml

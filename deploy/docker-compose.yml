@@ -98,6 +98,17 @@ services:
       redis:
         condition: service_healthy
 
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    # nginx serves the built SPA and reverse-proxies /api + /hubs to the api service, so the browser
+    # talks to a single origin (no CORS/CSP/cross-origin-cookie issues). Open the app at this port.
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    depends_on:
+      - api
+
 volumes:
   pgdata:
   rabbitdata:

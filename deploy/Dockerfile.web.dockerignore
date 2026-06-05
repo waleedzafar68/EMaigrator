@@ -1,0 +1,12 @@
+# Scoped to the web image build (BuildKit reads <dockerfile>.dockerignore for this Dockerfile only).
+# Keeps the build context to web/ + deploy/web-nginx.conf and drops everything heavy/irrelevant.
+**/node_modules/
+**/dist/
+**/bin/
+**/obj/
+**/.git/
+**/TestResults/
+**/*.tsbuildinfo
+src/
+docs/
+design_handoff_emaigrator/

@@ -105,7 +105,7 @@ Stack: .NET 10 / ASP.NET Core · EF Core + PostgreSQL · MassTransit + RabbitMQ 
 ```bash
 dotnet build src/EMaigrator.sln -c Release          # build
 dotnet test  src/EMaigrator.sln -c Release          # all .NET tests (Docker needed for integration)
-docker compose -f deploy/docker-compose.yml up       # Postgres + RabbitMQ + Redis (+ app)
+docker compose -f deploy/docker-compose.yml up -d     # full stack: Postgres+RabbitMQ+Redis + API + workers + web UI (http://localhost:3000)
 npm --prefix web run test -- --run                   # frontend unit tests
 npm --prefix web run e2e                             # Playwright E2E
 dotnet list package --vulnerable --include-transitive # supply-chain audit (CI-gated)
