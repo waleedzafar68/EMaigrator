@@ -38,6 +38,10 @@ public static class AuthEndpoints
         auth.MapPost("/login", LoginAsync)
             .AllowAnonymous()
             .RequireRateLimiting(Security.RateLimitPolicies.Auth);
+        // Logout clears the auth cookie. Anonymous on purpose: clearing the cookie must work even when
+        // the session has already expired (an expired JWT would otherwise 401 the call and strand the cookie).
+        auth.MapPost("/logout", Logout)
+            .AllowAnonymous();
 
         return group;
     }
@@ -135,6 +139,23 @@ public static class AuthEndpoints
         });
 
         return Results.Ok(new LoginResponse(token, expiresAt));
+    }
+
+    private static IResult Logout(HttpContext httpContext)
+    {
+        ArgumentNullException.ThrowIfNull(httpContext);
+
+        // Delete emits a Set-Cookie with the same flags as login + an expiry in the past and an empty
+        // value, so a conforming client drops the cookie. The flags (HttpOnly/Secure/SameSite/Path) must
+        // match the ones login used or the browser would keep the original cookie alongside the deletion.
+        httpContext.Response.Cookies.Delete(AuthCookieName, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+        });
+
+        return Results.NoContent();
     }
 
     private static Dictionary<string, string[]> ToErrorDictionary(

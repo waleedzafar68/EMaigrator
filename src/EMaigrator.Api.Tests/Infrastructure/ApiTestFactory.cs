@@ -71,6 +71,11 @@ public sealed class ApiTestFactory : WebApplicationFactory<Program>
             // terminal-state email and resolve a recipient without a seeded owning user. Harmless for
             // earlier suites (they never resolve these through the DI graph).
             CapturingEmailExtensions.AddCapturingEmail(services);
+
+            // Provider catalog: AddTestPlugins + AddFakePreflight register fake imap + graph plugins; append
+            // a fake gmail plugin too so GET /providers sees all three v1 connectors. APPENDED (no RemoveAll)
+            // and never built into a connector, so it is harmless to every other suite.
+            FakeGmailPluginExtensions.AddFakeGmailPlugin(services);
         });
 
         return base.CreateHost(builder);
