@@ -59,8 +59,8 @@ describe("MigrationsHubClient", () => {
     const seen: unknown[] = [];
     client.onProgress((dto) => seen.push(dto));
     await client.start();
-    hub.fire("Progress", { migratedCount: 5, total: 10, status: "Running" });
-    expect(seen).toEqual([{ migratedCount: 5, total: 10, status: "Running" }]);
+    hub.fire("Progress", { migrationId: "m1", migrated: 5, total: 10, currentFolder: null, msgPerMin: 0, status: "Running" });
+    expect(seen).toEqual([{ migrationId: "m1", migrated: 5, total: 10, currentFolder: null, msgPerMin: 0, status: "Running" }]);
   });
 
   it("does not read auth tokens from storage", async () => {
@@ -87,7 +87,7 @@ describe("MigrationsHubClient", () => {
     const seen: [string, unknown][] = [];
     client.onNeedsDecision((id, dto) => seen.push([id, dto]));
     await client.start();
-    const dto = { migrationId: "m1", issueType: "X", detail: "d", options: [] };
+    const dto = { issueType: "X", detail: "d", options: [] };
     hub.fire("NeedsDecision", "m1", dto);
     expect(seen).toEqual([["m1", dto]]);
   });
@@ -101,7 +101,7 @@ describe("MigrationsHubClient", () => {
     client.onProgress((dto) => calls2.push(dto));
     await client.start();
     remove1();
-    hub.fire("Progress", { migratedCount: 3, total: 10, status: "Running" });
+    hub.fire("Progress", { migrationId: "m1", migrated: 3, total: 10, currentFolder: null, msgPerMin: 0, status: "Running" });
     expect(calls1).toHaveLength(0);
     expect(calls2).toHaveLength(1);
   });

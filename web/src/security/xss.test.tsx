@@ -15,7 +15,7 @@ describe("XSS-safe rendering", () => {
   it("renders a script-payload subject and onerror folder as escaped text", () => {
     const { container } = render(
       <AuditTable entries={[
-        { subject: "<script>alert('xss')</script>", messageDate: "2024-01-08T00:00:00Z", sourceFolder: "<img src=x onerror=alert(1)>", destFolder: "/Sent", status: "skipped" },
+        { subject: "<script>alert('xss')</script>", date: "2024-01-08T00:00:00Z", sourceFolder: "<img src=x onerror=alert(1)>", destFolder: "/Sent", status: "skipped" },
       ]} />,
     );
     expect(screen.getByText("<script>alert('xss')</script>")).toBeInTheDocument();

@@ -10,7 +10,7 @@ vi.mock("react-router-dom", () => ({ useOutletContext: () => ({ migration: { id:
 function mockStream(over: Partial<stream.MigrationStream>) {
   vi.spyOn(stream, "useMigrationStream").mockReturnValue({
     connectionState: "connected",
-    progress: { migratedCount: 2310, total: 3201, currentFolder: "/Archive/2023", msgPerMin: 412, status: "Running" },
+    progress: { migrated: 2310, total: 3201, currentFolder: "/Archive/2023", msgPerMin: 412, status: "Running" },
     status: "Running",
     needsDecision: [],
     ...over,
@@ -32,7 +32,7 @@ describe("StepRun", () => {
   it("shows a throttling chip when the throttled flag is set (not via a bogus status)", () => {
     vi.spyOn(stream, "useMigrationStream").mockReturnValue({
       connectionState: "connected", status: "Running", needsDecision: [],
-      progress: { migratedCount: 5, total: 10, currentFolder: null, msgPerMin: 0, status: "Running", throttled: true },
+      progress: { migrated: 5, total: 10, currentFolder: null, msgPerMin: 0, status: "Running", throttled: true },
     });
     render(<StepRun />);
     expect(screen.getByText(/slowing to respect limits/i)).toBeInTheDocument();

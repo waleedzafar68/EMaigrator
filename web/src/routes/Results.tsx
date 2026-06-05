@@ -2,16 +2,21 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { AuditEntryDto, ResultsDto } from "../api/types";
 import { getAudit, getResults, rerun, reportUrl } from "../api/migrations";
+import { ErrorAlert } from "../components/ErrorAlert";
+import { errorAlertProps } from "../components/states/fromApiError";
 import { AuditTable } from "./AuditTable";
 
-const HEADER: Record<string, string> = {
-  Completed: "Migration complete", Partial: "Migration complete — Partial",
-  Failed: "Migration failed", Cancelled: "Migration cancelled",
-};
+// The API ResultsDto does NOT carry a status, so the header is derived from reconciliation: a fully
+// matched, failure-free job reads "complete"; anything outstanding reads "Partial".
+function resultsHeader(data: ResultsDto): string {
+  const clean = data.reconciliation.matched && data.counts.failed === 0;
+  return clean ? "Migration complete" : "Migration complete — Partial";
+}
 
 export function Results() {
   const { id = "" } = useParams();
   const [data, setData] = useState<ResultsDto | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [audit, setAudit] = useState<AuditEntryDto[]>([]);
   const [failuresOnly, setFailuresOnly] = useState(false);
   const [q, setQ] = useState("");
@@ -24,27 +29,30 @@ export function Results() {
 
   useEffect(() => {
     let active = true;
-    void getResults(id).then((r) => { if (active) setData(r); });
+    void getResults(id)
+      .then((r) => { if (active) setData(r); })
+      .catch((e: unknown) => { if (active) setError(e); }); // 401 redirects globally; show anything else
     return () => { active = false; };
   }, [id]);
 
   useEffect(() => {
     let active = true;
-    void getAudit(id, { q: debouncedQ, failuresOnly }).then((rows) => { if (active) setAudit(rows); });
+    void getAudit(id, { q: debouncedQ, failuresOnly }).then((rows) => { if (active) setAudit(rows); }).catch(() => {});
     return () => { active = false; };
   }, [id, debouncedQ, failuresOnly]);
 
+  if (error) return <ErrorAlert {...errorAlertProps(error)} />;
   if (!data) return <div role="status" aria-label="Loading results" className="h-24 animate-pulse rounded bg-surface-2" />;
 
   return (
     <div className="space-y-5">
-      <h2 className="text-[length:var(--fs-h1)] font-semibold">{HEADER[data.status] ?? "Migration"}</h2>
+      <h2 className="text-[length:var(--fs-h1)] font-semibold">{resultsHeader(data)}</h2>
       <p className="mono text-sm">
-        ✓ {data.migratedCount.toLocaleString()} migrated · ⚠ {data.needsDecision.length} need your decision · ⤫ {data.skippedCount} skipped
+        ✓ {data.counts.migrated.toLocaleString()} migrated · ⚠ {data.needsDecision.length} need your decision · ⤫ {data.counts.skipped} skipped
       </p>
       <p className="text-sm text-fg-muted">
-        {data.sourceCount.toLocaleString()} in source, {data.destCount.toLocaleString()} in destination
-        {data.sourceCount === data.destCount ? " ✓" : ""}
+        {data.reconciliation.sourceCount.toLocaleString()} in source, {data.reconciliation.destCount.toLocaleString()} in destination
+        {data.reconciliation.matched ? " ✓" : ""}
       </p>
 
       {data.needsDecision.length ? (

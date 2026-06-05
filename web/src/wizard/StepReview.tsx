@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import type { MigrationDto, PreflightPlanDto, RemediationAction } from "../api/types";
 import { approve, getPreflight, startPreflight } from "../api/migrations";
+import { ErrorAlert } from "../components/ErrorAlert";
+import { errorAlertProps } from "../components/states/fromApiError";
 import { formatBytes, formatDuration } from "./format";
 
 const ACTION_LABEL: Record<RemediationAction, string> = {
@@ -13,22 +15,28 @@ export function StepReview() {
   const { migration } = useOutletContext<{ migration: MigrationDto }>();
   const navigate = useNavigate();
   const [plan, setPlan] = useState<PreflightPlanDto | null>(null);
+  const [error, setError] = useState<unknown>(null);
   const [resolutions, setResolutions] = useState<Record<string, RemediationAction>>({});
 
   useEffect(() => {
     let active = true;
     let timerId: ReturnType<typeof setTimeout> | undefined;
     const poll = async () => {
-      const p = await getPreflight(migration.id);
-      if (!active) return;
-      setPlan(p);
-      if (p.scanning) timerId = setTimeout(() => void poll(), 1500);
-      else setResolutions(Object.fromEntries(p.issues.map((i) => [i.issueType, i.recommendedAction])));
+      try {
+        const p = await getPreflight(migration.id);
+        if (!active) return;
+        setPlan(p);
+        if (p.scanning) timerId = setTimeout(() => void poll(), 1500);
+        else setResolutions(Object.fromEntries(p.issues.map((i) => [i.issueType, i.recommendedAction])));
+      } catch (e) {
+        if (active) setError(e); // 401 redirects globally; surface anything else instead of hanging
+      }
     };
     void startPreflight(migration.id).catch(() => {}).finally(() => { if (active) void poll(); });
     return () => { active = false; clearTimeout(timerId); };
   }, [migration.id]);
 
+  if (error) return <ErrorAlert {...errorAlertProps(error)} />;
   if (!plan || plan.scanning) {
     return <div role="status" aria-label="Reviewing your mailboxes">Reviewing your mailboxes…</div>;
   }

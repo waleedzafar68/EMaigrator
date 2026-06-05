@@ -12,7 +12,13 @@ export function StepRun() {
   const [dense, setDense] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  const pct = progress && progress.total > 0 ? Math.round((progress.migratedCount / progress.total) * 100) : 0;
+  const pct = !progress
+    ? 0
+    : typeof progress.percent === "number"
+      ? Math.round(progress.percent)
+      : progress.total > 0
+        ? Math.round((progress.migrated / progress.total) * 100)
+        : 0;
   // Throttling is a dedicated flag, not a JobStatus value (see MigrationProgressDto).
   const throttled = progress?.throttled === true;
   const isPaused = status === "Paused";
@@ -29,7 +35,7 @@ export function StepRun() {
 
       <ProgressBar value={pct} label="Migration progress" />
       <p className="mono text-sm">
-        {(progress?.migratedCount ?? 0).toLocaleString()} / {(progress?.total ?? 0).toLocaleString()}
+        {(progress?.migrated ?? 0).toLocaleString()} / {(progress?.total ?? 0).toLocaleString()}
       </p>
       {progress?.currentFolder ? <p className="text-sm text-fg-muted">Current: {progress.currentFolder}</p> : null}
       <p className="mono text-sm">{progress?.msgPerMin ?? 0} msg/min</p>

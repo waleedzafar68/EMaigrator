@@ -9,11 +9,25 @@ import type { MigrationProgressDto, NeedsDecisionDto } from "./types";
 export type ConnectionState = "connected" | "reconnecting" | "disconnected";
 
 export function createHub(): HubConnection {
+  return defaultHubFactory();
+}
+
+let defaultHubFactory: () => HubConnection = realHub;
+
+function realHub(): HubConnection {
   return new HubConnectionBuilder()
     .withUrl("/hubs/migrations") // auth via httpOnly cookie the browser sends automatically
     .withAutomaticReconnect()
     .configureLogging(LogLevel.Warning)
     .build();
+}
+
+/**
+ * Test seam: swap the hub factory used by `MigrationsHubClient` instances created with no explicit
+ * factory (e.g. inside components/hooks). Pass `null` to restore the real `@microsoft/signalr` hub.
+ */
+export function setDefaultHubFactory(factory: (() => HubConnection) | null): void {
+  defaultHubFactory = factory ?? realHub;
 }
 
 type ProgressFn = (dto: MigrationProgressDto) => void;

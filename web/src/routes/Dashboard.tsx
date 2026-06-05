@@ -2,11 +2,21 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { LayoutGrid, List } from "lucide-react";
 import { listMigrations } from "../api/migrations";
-import type { MigrationDto, UsageDto } from "../api/types";
+import { MigrationsHubClient } from "../api/signalr";
+import type { JobStatus, MigrationDto, UsageDto } from "../api/types";
 import { jobStatusToChip, StatusChip } from "../components/StatusChip";
 import { ProviderRoute } from "../components/ProviderRoute";
 
 type Layout = "cards" | "list";
+
+// Non-terminal states whose rows we keep live via the hub.
+const NON_TERMINAL: ReadonlySet<JobStatus> = new Set<JobStatus>([
+  "Queued", "PreFlight", "AwaitingApproval", "Running", "Paused",
+]);
+
+function isNonTerminal(status: JobStatus): boolean {
+  return NON_TERMINAL.has(status);
+}
 
 function actionFor(m: MigrationDto): { to: string; label: string } {
   if (m.status === "Draft") return { to: `/migrations/${m.id}`, label: "Resume" };
@@ -22,7 +32,9 @@ function actionFor(m: MigrationDto): { to: string; label: string } {
 
 function pct(m: MigrationDto): number {
   const p = m.progress;
-  return p && p.total > 0 ? Math.round((p.migratedCount / p.total) * 100) : 0;
+  if (!p) return 0;
+  if (typeof p.percent === "number") return Math.round(p.percent);
+  return p.total > 0 ? Math.round((p.migrated / p.total) * 100) : 0;
 }
 
 function Welcome() {
@@ -57,6 +69,57 @@ export function Dashboard() {
       .then(setItems)
       .catch(() => setItems([]));
   }, []);
+
+  // Live per-row updates: a SINGLE hub client subscribed to every in-flight row. Progress events
+  // carry the migrationId (wire MigrationProgressDto.MigrationId) so we can route them to the right
+  // row; StatusChanged already carries the id. Re-subscribes only when the live-id set changes.
+  const liveIds = (items ?? []).filter((m) => isNonTerminal(m.status)).map((m) => m.id);
+  const liveKey = liveIds.slice().sort().join(",");
+  useEffect(() => {
+    if (!liveKey) return;
+    const ids = liveKey.split(",");
+    let client: MigrationsHubClient;
+    try {
+      client = new MigrationsHubClient();
+    } catch {
+      return; // realtime unavailable (e.g. no hub endpoint) — render without live updates
+    }
+    const offs = [
+      client.onProgress((dto) => {
+        if (!dto.migrationId) return;
+        setItems((prev) =>
+          prev?.map((m) =>
+            m.id === dto.migrationId
+              ? { ...m, progress: dto, status: dto.status ?? m.status }
+              : m,
+          ) ?? prev,
+        );
+      }),
+      client.onStatusChanged((id, status) => {
+        setItems((prev) =>
+          prev?.map((m) => (m.id === id ? { ...m, status: status as JobStatus } : m)) ?? prev,
+        );
+      }),
+    ];
+    let cancelled = false;
+    void (async () => {
+      try {
+        await client.start();
+        for (const id of ids) {
+          if (cancelled) return;
+          await client.subscribe(id);
+        }
+      } catch {
+        /* transient realtime failure — the table still shows the last server snapshot */
+      }
+    })();
+    return () => {
+      cancelled = true;
+      offs.forEach((off) => off());
+      for (const id of ids) void client.unsubscribe(id).catch(() => {});
+      void client.stop().catch(() => {});
+    };
+  }, [liveKey]);
 
   function setAndPersist(l: Layout) {
     setLayout(l);

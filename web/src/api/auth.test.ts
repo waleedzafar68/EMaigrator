@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setUnauthorizedHandler } from "./client";
-import { login, register } from "./auth";
+import { login, logout, register } from "./auth";
 
 describe("auth api", () => {
   afterEach(() => {
@@ -48,6 +48,18 @@ describe("auth api", () => {
       password: "passwordpassword",
       organizationName: "Acme",
     });
+  });
+
+  it("logout POSTs to /auth/logout and resolves on 204", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(logout()).resolves.toBeUndefined();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/v1/auth/logout");
+    expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
   });
 
   it("fires the unauthorized handler on a 401 and still rejects", async () => {

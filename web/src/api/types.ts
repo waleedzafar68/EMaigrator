@@ -12,16 +12,31 @@ export type AuthMethod =
 
 export type Severity = "Info" | "Warning" | "Blocker";
 
+// GET /providers — capability matrix the API is authoritative for (CONTRACTS §3). camelCase.
+export interface ProviderCapabilityDto {
+  id: ProviderId;
+  canBeSource: boolean;
+  canBeDestination: boolean;
+  canBatch: boolean;
+  supportedAuth: AuthMethod[];
+}
+
 export type RemediationAction =
   | "None" | "RetryWithBackoff" | "FlattenFolder" | "SanitizeFolderName"
   | "RenameFolder" | "MergeFolder" | "SkipMessage";
 
+// One type covers BOTH wire shapes (API canonical, camelCase):
+//   • REST   MigrationProgressSummary { migrated, total, percent, currentFolder, msgPerMin } — no migrationId, no status.
+//   • SignalR MigrationProgressDto    { migrationId, migrated, total, currentFolder, msgPerMin, status } — no percent.
+// `migrated`, `total`, `currentFolder`, `msgPerMin` are common; the side-specific fields are optional.
 export interface MigrationProgressDto {
-  migratedCount: number;       // CONTRACTS §4 MigrationProgressEvent.Migrated
+  migrated: number;            // API MigrationProgressSummary.Migrated / MigrationProgressDto.Migrated
   total: number;
   currentFolder: string | null;
   msgPerMin: number;
-  status: JobStatus;           // ∈ JobStatus — never a throttling sentinel
+  migrationId?: string;        // SignalR push only — lets multi-row listeners route to the right row
+  percent?: number;            // REST summary only — prefer it when present, else compute migrated/total
+  status?: JobStatus;          // SignalR push only — ∈ JobStatus, never a throttling sentinel
   // throttling is NOT a JobStatus (CONTRACTS freezes Status ∈ JobStatus); rides a dedicated
   // optional flag the Api (Plan 08) sets from the rate-limiter. Absent/false ⇒ not throttled.
   throttled?: boolean;
@@ -78,9 +93,10 @@ export interface MigrationEstimateDto {
   totalBytes: number;
   estimatedDurationSeconds: number;
 }
-// UsageDto and the usage/scanning fields are API view-model projections (hosted billing §14 +
-// async-preflight §6) layered on the frozen Core PreflightPlan(Issues, Estimate). Owned by
-// EMaigrator.Api (Plan 08); the frontend mirrors that wire shape. camelCase; track Plan 08's serializer.
+// UsageDto and the usage/scanning fields are hosted-layer view-model projections (hosted billing §14 +
+// async-preflight §6). The OSS API's GET /migrations/{id}/preflight serializes ONLY { issues, estimate }
+// (see EMaigrator.Api PreflightDtos/PreflightEndpoints), so usage+scanning are OPTIONAL here and render
+// gracefully when absent. camelCase; do not invent fields.
 export interface UsageDto {
   used: number;
   quota: number;
@@ -90,30 +106,38 @@ export interface UsageDto {
 export interface PreflightPlanDto {
   issues: PreflightIssueDto[];
   estimate: MigrationEstimateDto;
-  usage: UsageDto | null;
-  scanning: boolean;
+  usage?: UsageDto | null;   // API gap: not sent by the OSS preflight endpoint
+  scanning?: boolean;        // API gap: not sent by the OSS preflight endpoint
 }
 export interface ApproveRequest { resolutions: Record<string, RemediationAction>; }
+// Mirrors BOTH the API's REST NeedsDecisionItemDto and SignalR NeedsDecisionDto: { issueType, detail,
+// options } — options are RemediationAction names serialized as plain strings, with NO migrationId in
+// the payload (SignalR passes the id as a separate hub-method argument). (CONTRACTS §6)
 export interface NeedsDecisionDto {
-  migrationId: string;
   issueType: string;
   detail: string;
   options: RemediationAction[];
 }
-export interface ResultsDto {
-  status: JobStatus;
-  migratedCount: number;
-  skippedCount: number;
-  failedCount: number;
-  needsDecision: NeedsDecisionDto[];
+// Mirrors the API ResultsDto: nested counts + reconciliation + the needs-decision queue. The flat
+// status/durationSeconds/logDeletesAt fields the old shape carried are NOT sent by the API (gap).
+export interface ResultCounts {
+  migrated: number;
+  skipped: number;
+  failed: number;
+}
+export interface Reconciliation {
   sourceCount: number;
   destCount: number;
-  durationSeconds: number;
-  logDeletesAt: string;
+  matched: boolean;
+}
+export interface ResultsDto {
+  counts: ResultCounts;
+  reconciliation: Reconciliation;
+  needsDecision: NeedsDecisionDto[];
 }
 export interface AuditEntryDto {
   subject: string | null;
-  messageDate: string;
+  date: string;                // API AuditEntryDto.Date (DateTimeOffset → ISO string)
   sourceFolder: string;
   destFolder: string;
   status: "migrated" | "skipped" | "failed";

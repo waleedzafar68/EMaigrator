@@ -26,3 +26,6 @@ export const register = (body: RegisterRequest) =>
 /** POST /auth/login — on success the API sets the HttpOnly auth cookie used by every later call. */
 export const login = (body: LoginRequest) =>
   apiFetch<LoginResult>("/auth/login", { method: "POST", body: JSON.stringify(body) });
+
+/** POST /auth/logout — clears the HttpOnly auth cookie (API answers 204). */
+export const logout = () => apiFetch<void>("/auth/logout", { method: "POST" });

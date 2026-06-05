@@ -6,10 +6,10 @@ let draft = {
 };
 
 const okTest = { ok: true, folderCount: 14, messageCount: 3201, errorCode: null, rawDetail: null };
+// Matches the API PreflightPlanDto wire shape: only { issues, estimate } (no usage/scanning).
 const cleanPlan = {
-  scanning: false, issues: [],
+  issues: [],
   estimate: { mailboxCount: 1, folderCount: 14, messageCount: 3201, totalBytes: 262144000, estimatedDurationSeconds: 720 },
-  usage: null,
 };
 
 export const handlers = [

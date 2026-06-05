@@ -18,7 +18,7 @@ export function AuditTable({ entries }: { entries: AuditEntryDto[] }) {
           <tr key={i} className="border-t border-border">
             {/* React escapes text children by default — raw HTML is never injected */}
             <td>{e.subject ?? "(hidden)"}</td>
-            <td className="mono">{e.messageDate.slice(0, 10)}</td>
+            <td className="mono">{e.date.slice(0, 10)}</td>
             <td className="mono">{e.sourceFolder}</td>
             <td>{STATUS_LABEL[e.status]}</td>
           </tr>
