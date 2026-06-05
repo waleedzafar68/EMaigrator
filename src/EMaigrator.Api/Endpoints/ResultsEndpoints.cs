@@ -6,11 +6,13 @@ using System.Threading.Tasks;
 using EMaigrator.Api.Contracts;
 using EMaigrator.Api.Mapping;
 using EMaigrator.Core.Abstractions;
+using EMaigrator.Core.Configuration;
 using EMaigrator.Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace EMaigrator.Api.Endpoints;
 
@@ -42,10 +44,12 @@ public static class ResultsEndpoints
         return group;
     }
 
-    private static async Task<IResult> ResultsAsync(Guid id, EmaigratorDbContext db, ILedger ledger)
+    private static async Task<IResult> ResultsAsync(
+        Guid id, EmaigratorDbContext db, ILedger ledger, IOptions<RetentionOptions> retention)
     {
         ArgumentNullException.ThrowIfNull(db);
         ArgumentNullException.ThrowIfNull(ledger);
+        ArgumentNullException.ThrowIfNull(retention);
 
         // The tenant query filter confines this lookup to the caller's tenant; a cross-tenant id is null.
         var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
@@ -81,10 +85,36 @@ public static class ResultsEndpoints
                 DecisionOptions))
             .ToList();
 
+        // Wall-clock duration: (max FinishedAt − min StartedAt) across the job's mailboxes, but only once
+        // every mailbox has both timestamps set (i.e. the whole job has started AND finished). Null while
+        // any mailbox is still un-started or un-finished — duration is undefined mid-run.
+        double? durationSeconds = null;
+        if (mbx.Count > 0 && mbx.All(m => m.StartedAt.HasValue && m.FinishedAt.HasValue))
+        {
+            var minStart = mbx.Min(m => m.StartedAt!.Value);
+            var maxFinish = mbx.Max(m => m.FinishedAt!.Value);
+            durationSeconds = (maxFinish - minStart).TotalSeconds;
+        }
+
+        // logDeletesAt = latest MigrationLogRow.CreatedAt for this job + LogRetentionDays. Null when this
+        // job has no log rows yet (nothing scheduled for deletion). One extra aggregate query over the
+        // already-scoped mailbox ids.
+        DateTimeOffset? logDeletesAt = null;
+        var latestLog = await db.MigrationLogs
+            .Where(l => mbxIds.Contains(l.MailboxMigrationId))
+            .MaxAsync(l => (DateTimeOffset?)l.CreatedAt);
+        if (latestLog.HasValue)
+        {
+            logDeletesAt = latestLog.Value.AddDays(retention.Value.LogRetentionDays);
+        }
+
         return Results.Ok(new ResultsDto(
             new ResultCounts(migrated, skipped, failed),
             new Reconciliation(sourceCount, destCount, sourceCount == destCount + skipped + failed),
-            needs));
+            needs,
+            job.Status.ToString(),
+            durationSeconds,
+            logDeletesAt));
     }
 
     private static async Task<IResult> AuditAsync(

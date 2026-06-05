@@ -19,5 +19,11 @@ public sealed record MigrationEstimateDto(
     long TotalBytes,
     double EstimatedDurationSeconds);
 
-/// <summary>The stored pre-flight plan returned by <c>GET /migrations/{id}/preflight</c>.</summary>
-public sealed record PreflightPlanDto(IReadOnlyList<PreflightIssueDto> Issues, MigrationEstimateDto Estimate);
+/// <summary>
+/// The stored pre-flight plan returned by <c>GET /migrations/{id}/preflight</c>. <c>Scanning</c> is true
+/// while the background scan is still in flight (Job is in <c>PreFlight</c> and no stored plan row exists
+/// yet) — in that case <c>Issues</c> is empty and <c>Estimate</c> is all-zero; once the plan is stored it is
+/// false and the real issues/estimate are returned.
+/// </summary>
+public sealed record PreflightPlanDto(
+    IReadOnlyList<PreflightIssueDto> Issues, MigrationEstimateDto Estimate, bool Scanning);

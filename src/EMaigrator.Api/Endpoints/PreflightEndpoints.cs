@@ -70,7 +70,8 @@ public static class PreflightEndpoints
         ArgumentNullException.ThrowIfNull(side);
 
         // Ownership check via the filtered Job set, then read the side-stored plan.
-        if (!await db.Jobs.AnyAsync(j => j.Id == id))
+        var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
+        if (job is null)
         {
             return Results.NotFound();
         }
@@ -78,7 +79,11 @@ public static class PreflightEndpoints
         var row = await side.PreflightResults.FirstOrDefaultAsync(r => r.JobId == id);
         if (row is null)
         {
-            return Results.NotFound();
+            // The background scan is still in flight (Job flipped to PreFlight, no stored plan yet): return a
+            // 200 placeholder with scanning:true. If the job was never preflighted, keep the 404.
+            return job.Status == JobStatus.PreFlight
+                ? Results.Ok(new PreflightPlanDto([], new MigrationEstimateDto(0, 0, 0, 0, 0), true))
+                : Results.NotFound();
         }
 
         var plan = JsonSerializer.Deserialize<PreflightPlan>(row.PlanJson)!;
@@ -95,7 +100,8 @@ public static class PreflightEndpoints
                 plan.Estimate.FolderCount,
                 plan.Estimate.MessageCount,
                 plan.Estimate.TotalBytes,
-                plan.Estimate.EstimatedDuration.TotalSeconds));
+                plan.Estimate.EstimatedDuration.TotalSeconds),
+            false);
         return Results.Ok(dto);
     }
 }

@@ -34,6 +34,10 @@ public sealed class ResultsAuditTests
         _factory = new ApiTestFactory(fx).WithRecordingOrchestrator();
 
     private async Task<Guid> SeedCompletedJob(Guid tenantId, bool storeSubjects)
+        => await SeedCompletedJob(tenantId, storeSubjects, startedAt: null, finishedAt: null);
+
+    private async Task<Guid> SeedCompletedJob(
+        Guid tenantId, bool storeSubjects, DateTimeOffset? startedAt, DateTimeOffset? finishedAt)
     {
         using var scope = _factory.Services.CreateScope();
         ((TestCurrentTenant)scope.ServiceProvider.GetRequiredService<ICurrentTenant>()).Current = tenantId;
@@ -63,6 +67,8 @@ public sealed class ResultsAuditTests
             MigratedCount = 3,
             SkippedCount = 1,
             FailedCount = 1,
+            StartedAt = startedAt,
+            FinishedAt = finishedAt,
         };
         db.MailboxMigrations.Add(mbx);
 
@@ -102,6 +108,39 @@ public sealed class ResultsAuditTests
 
         res.GetProperty("counts").GetProperty("migrated").GetInt64().Should().Be(3);
         res.GetProperty("reconciliation").TryGetProperty("destCount", out _).Should().BeTrue();
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Results_durationSeconds_null_when_not_all_mailboxes_started_and_finished()
+    {
+        var (client, tenantId) = await AuthClient.CreateAsync(_factory);
+        // Default seed leaves StartedAt/FinishedAt null → duration is undefined mid-run.
+        var id = await SeedCompletedJob(tenantId, storeSubjects: true);
+
+        var res = await client.GetFromJsonAsync<JsonElement>($"/api/v1/migrations/{id}/results");
+
+        res.GetProperty("durationSeconds").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Results_returns_status_durationSeconds_and_logDeletesAt()
+    {
+        var (client, tenantId) = await AuthClient.CreateAsync(_factory);
+        var started = DateTimeOffset.UtcNow.AddMinutes(-10);
+        var finished = started.AddSeconds(90);
+        var id = await SeedCompletedJob(tenantId, storeSubjects: true, startedAt: started, finishedAt: finished);
+
+        var res = await client.GetFromJsonAsync<JsonElement>($"/api/v1/migrations/{id}/results");
+
+        // status = the Job's status.
+        res.GetProperty("status").GetString().Should().Be("Completed");
+
+        // durationSeconds = (max FinishedAt − min StartedAt).TotalSeconds, here exactly 90.
+        res.GetProperty("durationSeconds").GetDouble().Should().BeApproximately(90d, 0.001);
+
+        // logDeletesAt = latest MigrationLogRow.CreatedAt (≈ now) + LogRetentionDays (default 30).
+        var logDeletesAt = res.GetProperty("logDeletesAt").GetDateTimeOffset();
+        logDeletesAt.Should().BeCloseTo(DateTimeOffset.UtcNow.AddDays(30), TimeSpan.FromMinutes(2));
     }
 
     [Fact(Timeout = 30_000)]

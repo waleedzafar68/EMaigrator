@@ -16,9 +16,21 @@ public sealed record Reconciliation(long SourceCount, long DestCount, bool Match
 /// <summary>A failed/blocked item surfaced for operator resolution, with the actions the operator may pick.</summary>
 public sealed record NeedsDecisionItemDto(string IssueType, string Detail, IReadOnlyList<string> Options);
 
-/// <summary>The results payload: counts + reconciliation + the needs-decision queue.</summary>
+/// <summary>
+/// The results payload: counts + reconciliation + the needs-decision queue, plus the job's terminal/running
+/// <c>Status</c>, the wall-clock <c>DurationSeconds</c> (max FinishedAt − min StartedAt across the job's
+/// mailboxes; null until every mailbox has both timestamps), and <c>LogDeletesAt</c> (the latest
+/// <c>MigrationLogRow.CreatedAt</c> for this job plus <c>RetentionOptions.LogRetentionDays</c>; null when no
+/// log rows exist yet). JSON key order: counts, reconciliation, needsDecision, status, durationSeconds,
+/// logDeletesAt.
+/// </summary>
 public sealed record ResultsDto(
-    ResultCounts Counts, Reconciliation Reconciliation, IReadOnlyList<NeedsDecisionItemDto> NeedsDecision);
+    ResultCounts Counts,
+    Reconciliation Reconciliation,
+    IReadOnlyList<NeedsDecisionItemDto> NeedsDecision,
+    string Status,
+    double? DurationSeconds,
+    DateTimeOffset? LogDeletesAt);
 
 /// <summary>
 /// One audit row projected from a <c>MigrationLogRow</c>. <c>Subject</c> is null when the job's privacy
