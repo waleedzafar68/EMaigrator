@@ -35,6 +35,26 @@ describe("StepReview", () => {
     expect(screen.getByRole("button", { name: /start migration/i })).toBeEnabled();
   });
 
+  it("shows the Reviewing state while scanning, then renders the plan once the scan finishes", async () => {
+    // First poll: the background scan is still running (scanning:true, empty estimate). Second poll: done.
+    const scanningPlan = { scanning: true, issues: [], estimate: { mailboxCount: 0, folderCount: 0, messageCount: 0, totalBytes: 0, estimatedDurationSeconds: 0 }, usage: null };
+    vi.spyOn(api, "getPreflight")
+      .mockResolvedValueOnce(scanningPlan as never)
+      .mockResolvedValue(cleanPlan as never);
+    render(<StepReview />);
+    expect(await screen.findByRole("status", { name: /reviewing your mailboxes/i })).toBeInTheDocument();
+    // The 1.5s re-poll resolves to the stored plan; the Reviewing state is replaced by the Ready card.
+    expect(await screen.findByText(/ready to migrate/i, undefined, { timeout: 3000 })).toBeInTheDocument();
+    expect(api.getPreflight).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces a fetch failure as an error (not an infinite spinner)", async () => {
+    vi.spyOn(api, "getPreflight").mockRejectedValue(new Error("preflight unavailable"));
+    render(<StepReview />);
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /reviewing your mailboxes/i })).not.toBeInTheDocument();
+  });
+
   it("shows bulk resolution dropdowns and blocks Start when over the cap", async () => {
     vi.spyOn(api, "getPreflight").mockResolvedValue(issuePlan as never);
     render(<StepReview />);

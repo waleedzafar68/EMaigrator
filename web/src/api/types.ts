@@ -93,10 +93,10 @@ export interface MigrationEstimateDto {
   totalBytes: number;
   estimatedDurationSeconds: number;
 }
-// UsageDto and the usage/scanning fields are hosted-layer view-model projections (hosted billing §14 +
-// async-preflight §6). The OSS API's GET /migrations/{id}/preflight serializes ONLY { issues, estimate }
-// (see EMaigrator.Api PreflightDtos/PreflightEndpoints), so usage+scanning are OPTIONAL here and render
-// gracefully when absent. camelCase; do not invent fields.
+// UsageDto is a hosted-layer view-model projection (hosted billing §14). The OSS API's
+// GET /migrations/{id}/preflight serializes { issues, estimate, scanning } — usage is intentionally
+// ABSENT in OSS, so it stays optional here and renders gracefully when missing. camelCase; do not
+// invent fields.
 export interface UsageDto {
   used: number;
   quota: number;
@@ -106,8 +106,11 @@ export interface UsageDto {
 export interface PreflightPlanDto {
   issues: PreflightIssueDto[];
   estimate: MigrationEstimateDto;
-  usage?: UsageDto | null;   // API gap: not sent by the OSS preflight endpoint
-  scanning?: boolean;        // API gap: not sent by the OSS preflight endpoint
+  // API PreflightPlanDto.Scanning (always sent): true while the background scan is in flight
+  // (Job.Status == PreFlight and no stored plan yet) → issues/estimate are empty/zeroed; false once
+  // the stored plan exists. Poll GET /preflight while this is true. (CONTRACTS §6 async-preflight)
+  scanning: boolean;
+  usage?: UsageDto | null;   // hosted-only: never sent by the OSS preflight endpoint
 }
 export interface ApproveRequest { resolutions: Record<string, RemediationAction>; }
 // Mirrors BOTH the API's REST NeedsDecisionItemDto and SignalR NeedsDecisionDto: { issueType, detail,
@@ -118,8 +121,8 @@ export interface NeedsDecisionDto {
   detail: string;
   options: RemediationAction[];
 }
-// Mirrors the API ResultsDto: nested counts + reconciliation + the needs-decision queue. The flat
-// status/durationSeconds/logDeletesAt fields the old shape carried are NOT sent by the API (gap).
+// Mirrors the API ResultsDto: nested counts + reconciliation + the needs-decision queue, plus the
+// job's status and (when computable) duration + log-retention deadline. camelCase; do not invent fields.
 export interface ResultCounts {
   migrated: number;
   skipped: number;
@@ -134,6 +137,13 @@ export interface ResultsDto {
   counts: ResultCounts;
   reconciliation: Reconciliation;
   needsDecision: NeedsDecisionDto[];
+  status: JobStatus;            // API ResultsDto.Status — the Job's status (e.g. "Completed"|"Partial"|...)
+  // API ResultsDto.DurationSeconds: (max FinishedAt - min StartedAt) across the job's MailboxMigrations,
+  // in seconds; null while not all mailboxes have both started and finished.
+  durationSeconds: number | null;
+  // API ResultsDto.LogDeletesAt: ISO timestamp = latest MigrationLog.CreatedAt + LogRetentionDays
+  // (default 30); null when there are no log rows yet.
+  logDeletesAt: string | null;
 }
 export interface AuditEntryDto {
   subject: string | null;

@@ -6,14 +6,22 @@ let draft = {
 };
 
 const okTest = { ok: true, folderCount: 14, messageCount: 3201, errorCode: null, rawDetail: null };
-// Matches the API PreflightPlanDto wire shape: only { issues, estimate } (no usage/scanning).
+// An all-zero estimate, the shape the API serializes while the background scan is still in flight.
+const emptyEstimate = { mailboxCount: 0, folderCount: 0, messageCount: 0, totalBytes: 0, estimatedDurationSeconds: 0 };
+// Matches the API PreflightPlanDto wire shape: { issues, estimate, scanning } (usage is hosted-only).
+const scanningPlan = { issues: [], estimate: emptyEstimate, scanning: true };
 const cleanPlan = {
   issues: [],
   estimate: { mailboxCount: 1, folderCount: 14, messageCount: 3201, totalBytes: 262144000, estimatedDurationSeconds: 720 },
+  scanning: false,
 };
 
+// The async preflight: the first GET after starting the scan reports scanning:true (the SPA shows the
+// "Reviewing your mailboxes…" state and polls), and the stored plan lands on the next poll.
+let preflightStarted = false;
+
 export const handlers = [
-  http.post("/api/v1/migrations", () => { draft = { ...draft, status: "Draft", wizardStep: 0 }; return HttpResponse.json(draft); }),
+  http.post("/api/v1/migrations", () => { draft = { ...draft, status: "Draft", wizardStep: 0 }; preflightStarted = false; return HttpResponse.json(draft); }),
   http.get("/api/v1/migrations", () => HttpResponse.json([])),
   http.get("/api/v1/migrations/:id", () => HttpResponse.json(draft)),
   http.patch("/api/v1/migrations/:id/endpoints", async ({ request }) => {
@@ -24,7 +32,10 @@ export const handlers = [
   http.put("/api/v1/migrations/:id/connection/:side", () => HttpResponse.json(draft)),
   http.post("/api/v1/migrations/:id/connection/:side/test", () => HttpResponse.json(okTest)),
   http.put("/api/v1/migrations/:id/scope", () => { draft = { ...draft, wizardStep: 4 }; return HttpResponse.json(draft); }),
-  http.post("/api/v1/migrations/:id/preflight", () => new HttpResponse(null, { status: 202 })),
-  http.get("/api/v1/migrations/:id/preflight", () => HttpResponse.json(cleanPlan)),
+  http.post("/api/v1/migrations/:id/preflight", () => { preflightStarted = false; return new HttpResponse(null, { status: 202 }); }),
+  http.get("/api/v1/migrations/:id/preflight", () => {
+    if (!preflightStarted) { preflightStarted = true; return HttpResponse.json(scanningPlan); }
+    return HttpResponse.json(cleanPlan);
+  }),
   http.post("/api/v1/migrations/:id/approve", () => { draft = { ...draft, status: "Running", wizardStep: 5 }; return HttpResponse.json(draft); }),
 ];

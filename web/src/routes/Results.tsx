@@ -4,11 +4,16 @@ import type { AuditEntryDto, ResultsDto } from "../api/types";
 import { getAudit, getResults, rerun, reportUrl } from "../api/migrations";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { errorAlertProps } from "../components/states/fromApiError";
+import { formatElapsed } from "../wizard/format";
 import { AuditTable } from "./AuditTable";
 
-// The API ResultsDto does NOT carry a status, so the header is derived from reconciliation: a fully
-// matched, failure-free job reads "complete"; anything outstanding reads "Partial".
+// Prefer the job's real status (API ResultsDto.Status) for the header; fall back to a reconciliation-
+// derived label when it is somehow absent (e.g. an older API). A "Completed" job reads as complete;
+// any other terminal/outstanding status surfaces in the header so the operator sees the true outcome.
 function resultsHeader(data: ResultsDto): string {
+  if (data.status) {
+    return data.status === "Completed" ? "Migration complete" : `Migration complete — ${data.status}`;
+  }
   const clean = data.reconciliation.matched && data.counts.failed === 0;
   return clean ? "Migration complete" : "Migration complete — Partial";
 }
@@ -54,6 +59,9 @@ export function Results() {
         {data.reconciliation.sourceCount.toLocaleString()} in source, {data.reconciliation.destCount.toLocaleString()} in destination
         {data.reconciliation.matched ? " ✓" : ""}
       </p>
+      {data.durationSeconds != null ? (
+        <p className="mono text-sm text-fg-muted">Took {formatElapsed(data.durationSeconds)}</p>
+      ) : null}
 
       {data.needsDecision.length ? (
         <div className="space-y-2 rounded-[6px] border border-warning p-3">
@@ -85,9 +93,11 @@ export function Results() {
 
       <AuditTable entries={audit} />
 
-      <p className="text-sm text-fg-muted">
-        🔒 This log auto-deletes in 30 days. <button type="button" disabled title="Coming in a future release" className="text-accent opacity-50">Delete now</button>
-      </p>
+      {data.logDeletesAt ? (
+        <p className="text-sm text-fg-muted">
+          🔒 This log auto-deletes on {new Date(data.logDeletesAt).toLocaleDateString()}. <button type="button" disabled title="Coming in a future release" className="text-accent opacity-50">Delete now</button>
+        </p>
+      ) : null}
     </div>
   );
 }

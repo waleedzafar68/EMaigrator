@@ -7,12 +7,16 @@ import * as api from "../api/migrations";
 
 vi.mock("react-router-dom", () => ({ useParams: () => ({ id: "m1" }) }));
 
-// A genuinely Partial outcome: an outstanding decision leaves reconciliation unmatched (one item
-// unaccounted), which is what drives the "— Partial" header now that the API sends no status field.
+// A genuinely Partial outcome: the API reports the job's real status, and an outstanding decision
+// leaves reconciliation unmatched. The header now reflects data.status, with duration + log-retention
+// deadline driven by the new ResultsDto fields.
 const results = {
   counts: { migrated: 3180, skipped: 18, failed: 0 },
   reconciliation: { sourceCount: 3201, destCount: 3201, matched: false },
   needsDecision: [{ issueType: "FolderCollision", detail: "/Projects collision", options: ["RenameFolder", "MergeFolder"] }],
+  status: "Partial",
+  durationSeconds: 754,
+  logDeletesAt: "2026-07-05T00:00:00Z",
 };
 
 describe("Results", () => {
@@ -24,6 +28,40 @@ describe("Results", () => {
     render(<Results />);
     expect(await screen.findByText(/migration complete — partial/i)).toBeInTheDocument();
     expect(screen.getByText(/3,201 in source, 3,201 in destination/i)).toBeInTheDocument();
+  });
+
+  it("uses the API status for the header and shows the real duration", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue({ ...results, status: "Completed", durationSeconds: 754 } as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    render(<Results />);
+    // status "Completed" reads as plain complete (no "— Partial" suffix despite unmatched reconciliation)
+    expect(await screen.findByText(/^migration complete$/i)).toBeInTheDocument();
+    expect(screen.getByText(/took 12:34/i)).toBeInTheDocument(); // 754s → 12:34
+  });
+
+  it("falls back to a reconciliation-derived header when status is absent", async () => {
+    const noStatus = { counts: { migrated: 10, skipped: 0, failed: 0 }, reconciliation: { sourceCount: 10, destCount: 10, matched: true }, needsDecision: [], durationSeconds: null, logDeletesAt: null };
+    vi.spyOn(api, "getResults").mockResolvedValue(noStatus as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    render(<Results />);
+    expect(await screen.findByText(/^migration complete$/i)).toBeInTheDocument();
+  });
+
+  it("shows the real log-retention deadline and hides duration when null", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue({ ...results, durationSeconds: null, logDeletesAt: "2026-07-05T00:00:00Z" } as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    render(<Results />);
+    await screen.findByText(/migration complete — partial/i);
+    expect(screen.getByText(/auto-deletes on/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^Took /)).not.toBeInTheDocument();
+  });
+
+  it("hides the log-retention line when logDeletesAt is null", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue({ ...results, logDeletesAt: null } as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    render(<Results />);
+    await screen.findByText(/migration complete — partial/i);
+    expect(screen.queryByText(/auto-deletes/i)).not.toBeInTheDocument();
   });
 
   it("re-runs unfinished items", async () => {
