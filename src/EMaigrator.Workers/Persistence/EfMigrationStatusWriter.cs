@@ -56,4 +56,22 @@ public sealed class EfMigrationStatusWriter : IMigrationStatusWriter
         row.FinishedAt = DateTimeOffset.UtcNow;
         await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
     }
+
+    public async Task SetNotSupportedAsync(Guid mailboxMigrationId, string reason, CancellationToken ct)
+    {
+        // The reason is the why (logged by the consumer); the persisted signal is a terminal Failed
+        // row (no schema column for a free-text reason — keeps the no-body-persistence surface unchanged).
+        _ = reason;
+        await using var ctx = await _factory.CreateDbContextAsync(ct).ConfigureAwait(false);
+        var row = await ctx.MailboxMigrations
+            .FirstOrDefaultAsync(m => m.Id == mailboxMigrationId, ct).ConfigureAwait(false);
+        if (row is null || Array.IndexOf(Terminal, row.Status) >= 0)
+        {
+            return; // already terminal → idempotent no-op
+        }
+
+        row.Status = MailboxMigrationStatus.Failed;
+        row.FinishedAt = DateTimeOffset.UtcNow;
+        await ctx.SaveChangesAsync(ct).ConfigureAwait(false);
+    }
 }

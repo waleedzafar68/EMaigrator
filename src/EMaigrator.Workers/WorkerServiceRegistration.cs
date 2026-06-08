@@ -38,6 +38,7 @@ public static class WorkerServiceRegistration
         services.AddMassTransit(x =>
         {
             x.AddConsumer<StartMigrationConsumer>();
+            x.AddConsumer<ReconcileConsumer>();
             x.AddConsumer<MigrateFolderConsumer>();
             x.AddConsumer<MigrateBatchConsumer>();
             x.AddConsumer<MigrateBatchFaultConsumer>();

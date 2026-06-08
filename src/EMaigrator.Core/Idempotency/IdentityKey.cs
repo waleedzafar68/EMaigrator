@@ -31,7 +31,12 @@ public static class IdentityKey
         return "h:" + Convert.ToHexStringLower(bytes);
     }
 
-    private static string? NormalizeMessageId(string? messageId)
+    /// <summary>
+    /// Normalizes an RFC Message-ID for matching/indexing: trims, lowercases, and strips exactly one
+    /// surrounding pair of angle brackets. Returns null for null/empty/whitespace. Used by both
+    /// <see cref="Compute"/> and reconcile's source↔destination index (so both sides key identically).
+    /// </summary>
+    public static string? NormalizeMessageId(string? messageId)
     {
         if (string.IsNullOrWhiteSpace(messageId))
             return null;
