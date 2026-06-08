@@ -5,6 +5,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Reconcile internals (GraphAttachmentUploader / GraphAttachmentContent / GraphMimeSplitter)
+         are exercised directly by the connector's WireMock unit tests. -->
+    <InternalsVisibleTo Include="EMaigrator.Connectors.Graph.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Microsoft Graph v5 SDK (brings Microsoft.Graph.Core + Microsoft.Kiota.* transitively;
          the connector uses Kiota RequestInformation/ParsableFactory for raw MIME import). -->
     <PackageReference Include="Microsoft.Graph" />
