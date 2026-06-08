@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import type { AuditEntryDto, ResultsDto } from "../api/types";
-import { getAudit, getResults, rerun, reportUrl } from "../api/migrations";
+import { getAudit, getResults, reconcile, rerun, reportUrl } from "../api/migrations";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { errorAlertProps } from "../components/states/fromApiError";
 import { formatElapsed } from "../wizard/format";
@@ -26,6 +26,18 @@ export function Results() {
   const [failuresOnly, setFailuresOnly] = useState(false);
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileError, setReconcileError] = useState<unknown>(null);
+  const [reconcileStarted, setReconcileStarted] = useState(false);
+
+  const onReconcile = () => {
+    setReconcileError(null);
+    setReconciling(true);
+    void reconcile(id)
+      .then(() => setReconcileStarted(true))
+      .catch((e: unknown) => setReconcileError(e)) // 401 redirects globally; show anything else
+      .finally(() => setReconciling(false));
+  };
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300);
@@ -62,6 +74,22 @@ export function Results() {
       {data.durationSeconds != null ? (
         <p className="mono text-sm text-fg-muted">Took {formatElapsed(data.durationSeconds)}</p>
       ) : null}
+
+      <div className="space-y-2 rounded-[6px] border border-border-strong p-3">
+        <h3 className="font-medium">Reconcile / repair</h3>
+        <p className="text-sm text-fg-muted">
+          Re-scan the destination and copy any messages still missing + backfill missing attachments. Non-destructive · idempotent.
+        </p>
+        {reconcileStarted ? (
+          <p role="status" className="text-sm text-accent">Reconcile started — now running.</p>
+        ) : (
+          <button type="button" onClick={onReconcile} disabled={reconciling}
+            className="rounded-[8px] bg-accent px-3 py-1.5 text-accent-fg disabled:opacity-50">
+            {reconciling ? "Reconciling…" : "Reconcile / repair"}
+          </button>
+        )}
+        {reconcileError ? <ErrorAlert {...errorAlertProps(reconcileError)} /> : null}
+      </div>
 
       {data.needsDecision.length ? (
         <div className="space-y-2 rounded-[6px] border border-warning p-3">

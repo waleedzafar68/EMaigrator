@@ -59,5 +59,7 @@ export const getAudit = (id: string, q?: { q?: string; failuresOnly?: boolean })
   return apiFetch<AuditEntryDto[]>(`/migrations/${id}/audit${qs ? `?${qs}` : ""}`);
 };
 export const rerun = (id: string) => apiFetch<MigrationDto>(`/migrations/${id}/rerun`, { method: "POST" });
+export const reconcile = (id: string) =>
+  apiFetch<MigrationDto>(`/migrations/${id}/reconcile`, { method: "POST" });
 export const reportUrl = (id: string, format: "csv" | "pdf") =>
   `/api/v1/migrations/${id}/report?format=${format}`;

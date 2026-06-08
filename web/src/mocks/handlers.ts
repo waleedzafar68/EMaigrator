@@ -38,4 +38,5 @@ export const handlers = [
     return HttpResponse.json(cleanPlan);
   }),
   http.post("/api/v1/migrations/:id/approve", () => { draft = { ...draft, status: "Running", wizardStep: 5 }; return HttpResponse.json(draft); }),
+  http.post("/api/v1/migrations/:id/reconcile", () => { draft = { ...draft, status: "Running" }; return HttpResponse.json(draft); }),
 ];

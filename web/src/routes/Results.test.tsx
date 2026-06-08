@@ -82,6 +82,31 @@ describe("Results", () => {
     expect(screen.queryByRole("status", { name: /loading results/i })).not.toBeInTheDocument();
   });
 
+  it("reconciles: clicking the action calls reconcile and shows the running state", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue(results as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    const reconcile = vi.spyOn(api, "reconcile").mockResolvedValue({ id: "m1", status: "Running" } as never);
+    render(<Results />);
+    await screen.findByText(/migration complete — partial/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /reconcile \/ repair/i }));
+
+    expect(reconcile).toHaveBeenCalledWith("m1");
+    expect(await screen.findByText(/reconcile started — now running/i)).toBeInTheDocument();
+  });
+
+  it("reconcile failure renders an ErrorAlert (not an infinite skeleton)", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue(results as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    vi.spyOn(api, "reconcile").mockRejectedValue(new ApiError(500, "INTERNAL", "Reconcile failed", null, "t1"));
+    render(<Results />);
+    await screen.findByText(/migration complete — partial/i);
+
+    await userEvent.click(screen.getByRole("button", { name: /reconcile \/ repair/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/reconcile failed/i);
+  });
+
   it("offers CSV and PDF export links", async () => {
     vi.spyOn(api, "getResults").mockResolvedValue(results as never);
     vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
