@@ -31,6 +31,8 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <!-- [SkippableFact] for the gated live-smoke tests. -->
     <PackageReference Include="Xunit.SkippableFact" />
+    <!-- MimeKit (pinned centrally) builds the large/signed MIME fixtures + drives the MIME-splitter unit tests. -->
+    <PackageReference Include="MimeKit" />
   </ItemGroup>
 
 </Project>

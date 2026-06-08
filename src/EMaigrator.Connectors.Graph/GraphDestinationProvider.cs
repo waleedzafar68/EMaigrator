@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
+using EMaigrator.Connectors.Graph.Reconcile;
 using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Model;
 using Microsoft.Graph;
@@ -7,6 +8,7 @@ using Microsoft.Graph.Models;
 using Microsoft.Graph.Models.ODataErrors;
 using Microsoft.Kiota.Abstractions;
 using Microsoft.Kiota.Abstractions.Serialization;
+using MimeKit;
 
 namespace EMaigrator.Connectors.Graph;
 
@@ -19,6 +21,11 @@ namespace EMaigrator.Connectors.Graph;
 /// </summary>
 public sealed class GraphDestinationProvider : IDestinationProvider
 {
+    // Single-POST MIME import ceiling (length of the base64 text). Larger messages take the hybrid
+    // path: import a reduced MIME (oversized parts stripped) + add those parts back via the
+    // attachment uploader (POST <3MB / upload session 3-150MB). S/MIME messages are never stripped.
+    private const long MimeImportMaxBase64Bytes = 4 * 1024 * 1024;
+
     private readonly GraphServiceClient _client;
     private readonly string _accountEmail;
 
@@ -103,39 +110,79 @@ public sealed class GraphDestinationProvider : IDestinationProvider
                 ?? throw new GraphConfigurationException(
                     $"Destination folder '{folder}' does not exist; call EnsureFolderAsync first.");
 
-            string base64Mime;
+            byte[] rawMime;
             await using (var content = await message.OpenContentAsync(ct).ConfigureAwait(false))
             await using (var buffer = new MemoryStream())
             {
                 await content.CopyToAsync(buffer, ct).ConfigureAwait(false);
-                base64Mime = Convert.ToBase64String(buffer.ToArray());
+                rawMime = buffer.ToArray();
             }
 
-            // MIME import: start from the typed builder so the URL template + base URL are correct,
-            // then override the body with base64 RFC822 as text/plain (the typed PostAsync only sends JSON).
-            var builder = _client.Users[_accountEmail].MailFolders[folderId].Messages;
-            var requestInfo = builder.ToPostRequestInformation(new Message());
-            requestInfo.Headers.Clear();
-            requestInfo.SetStreamContent(
-                new MemoryStream(Encoding.ASCII.GetBytes(base64Mime)), "text/plain");
+            var base64Mime = Convert.ToBase64String(rawMime);
 
-            var errorMapping = new Dictionary<string, ParsableFactory<IParsable>>(StringComparer.Ordinal)
+            // Fast path: the whole MIME fits the single-POST ceiling → byte-identical to before.
+            if (base64Mime.Length <= MimeImportMaxBase64Bytes)
             {
-                ["4XX"] = ODataError.CreateFromDiscriminatorValue,
-                ["5XX"] = ODataError.CreateFromDiscriminatorValue,
-            };
+                var created = await ImportMimeAsync(folderId, base64Mime, ct).ConfigureAwait(false);
+                return new WriteResult(Written: true, DestMessageId: created?.Id);
+            }
 
-            var created = await _client.RequestAdapter
-                .SendAsync(requestInfo, Message.CreateFromDiscriminatorValue, errorMapping, ct)
-                .ConfigureAwait(false);
+            // Over-ceiling: parse and either (S/MIME) attempt a whole import, or strip the largest
+            // parts to fit and add them back via the uploader. Bytes never touch disk/DB.
+            using var mimeStream = new MemoryStream(rawMime);
+            var parsed = await MimeMessage.LoadAsync(mimeStream, ct).ConfigureAwait(false);
 
-            return new WriteResult(Written: true, DestMessageId: created?.Id);
+            if (GraphMimeSplitter.IsSigned(parsed))
+            {
+                // Stripping would break the signature/envelope → attempt the whole import; if Graph
+                // rejects the oversized body the catch below returns a normalized WriteResult(false).
+                var created = await ImportMimeAsync(folderId, base64Mime, ct).ConfigureAwait(false);
+                return new WriteResult(Written: true, DestMessageId: created?.Id);
+            }
+
+            var split = GraphMimeSplitter.Reduce(parsed, MimeImportMaxBase64Bytes);
+            var reducedBase64 = Convert.ToBase64String(split.ReducedMimeBytes);
+            var reduced = await ImportMimeAsync(folderId, reducedBase64, ct).ConfigureAwait(false);
+            if (reduced?.Id is not { } destMessageId)
+            {
+                return new WriteResult(Written: false, ErrorCode: "graph:reduced-import-no-id");
+            }
+
+            foreach (var att in split.Stripped)
+            {
+                await GraphAttachmentUploader.AddAsync(_client, _accountEmail, destMessageId, att, ct)
+                    .ConfigureAwait(false);
+            }
+
+            return new WriteResult(Written: true, DestMessageId: destMessageId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             var n = GraphErrorNormalizer.Normalize(ex);
             return new WriteResult(Written: false, ErrorCode: n.Signature);
         }
+    }
+
+    /// <summary>POSTs base64 RFC822 as text/plain to .../messages (MIME import) and returns the created message.</summary>
+    private async Task<Message?> ImportMimeAsync(string folderId, string base64Mime, CancellationToken ct)
+    {
+        // Start from the typed builder so the URL template + base URL are correct, then override the
+        // body with base64 RFC822 as text/plain (the typed PostAsync only sends JSON).
+        var builder = _client.Users[_accountEmail].MailFolders[folderId].Messages;
+        var requestInfo = builder.ToPostRequestInformation(new Message());
+        requestInfo.Headers.Clear();
+        requestInfo.SetStreamContent(
+            new MemoryStream(Encoding.ASCII.GetBytes(base64Mime)), "text/plain");
+
+        var errorMapping = new Dictionary<string, ParsableFactory<IParsable>>(StringComparer.Ordinal)
+        {
+            ["4XX"] = ODataError.CreateFromDiscriminatorValue,
+            ["5XX"] = ODataError.CreateFromDiscriminatorValue,
+        };
+
+        return await _client.RequestAdapter
+            .SendAsync(requestInfo, Message.CreateFromDiscriminatorValue, errorMapping, ct)
+            .ConfigureAwait(false);
     }
 
     public async Task<bool> ExistsByMessageIdAsync(FolderPath folder, string messageId, CancellationToken ct)

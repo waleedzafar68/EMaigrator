@@ -16,6 +16,9 @@
     <PackageReference Include="Microsoft.Graph" />
     <!-- ClientSecretCredential for the app-only client-credentials flow. -->
     <PackageReference Include="Azure.Identity" />
+    <!-- MIME split/parse for the hybrid large-message write + attachment backfill (reconcile).
+         MimeKit (MIT) pinned centrally for the IMAP connector; reuse the same version. -->
+    <PackageReference Include="MimeKit" />
     <!-- IServiceCollection + TryAddEnumerable for AddGraphConnector(). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
