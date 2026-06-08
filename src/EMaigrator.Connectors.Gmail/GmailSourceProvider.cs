@@ -98,7 +98,7 @@ public sealed class GmailSourceProvider : ISourceProvider
                 var getReq = _service.Users.Messages.Get(_userId, stub.Id);
                 getReq.Format = UsersResource.MessagesResource.GetRequest.FormatEnum.Raw;
                 var full = await getReq.ExecuteAsync(ct).ConfigureAwait(false);
-                yield return ToCanonical(full, labelMap);
+                yield return ToCanonical(full, labelMap, options.IncludeAttachmentMetadata);
             }
         }
         while (!string.IsNullOrEmpty(pageToken));
@@ -120,7 +120,7 @@ public sealed class GmailSourceProvider : ISourceProvider
         return parts.Count == 0 ? null : string.Join(' ', parts);
     }
 
-    private static CanonicalMessage ToCanonical(GmailMessage m, IReadOnlyDictionary<string, string> labelMap)
+    private static CanonicalMessage ToCanonical(GmailMessage m, IReadOnlyDictionary<string, string> labelMap, bool includeAttachments)
     {
         var rawBytes = GmailRawCodec.DecodeBase64Url(m.Raw);
         var rfc822 = Encoding.UTF8.GetString(rawBytes);
@@ -145,6 +145,11 @@ public sealed class GmailSourceProvider : ISourceProvider
             DecodedBodySha256Hex = bodySha,
         });
 
+        // Structure-only attachment metadata is opt-in (reconcile sets it); the normal migrate path parses nothing.
+        var attachments = includeAttachments
+            ? GmailMimeAttachments.Read(rawBytes)
+            : (IReadOnlyList<CanonicalAttachmentInfo>)[];
+
         // Capture bytes for the closure; never written to disk.
         var captured = rawBytes;
         return new CanonicalMessage
@@ -156,6 +161,7 @@ public sealed class GmailSourceProvider : ISourceProvider
             Labels = labels,
             SizeBytes = m.SizeEstimate ?? captured.LongLength,
             Subject = subject,
+            Attachments = attachments,
             OpenContentAsync = _ => Task.FromResult<Stream>(new MemoryStream(captured, writable: false)),
         };
     }

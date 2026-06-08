@@ -8,6 +8,9 @@
     <!-- Gmail v1 SDK + Google auth (service-account JSON -> GoogleCredential, DWD impersonation). -->
     <PackageReference Include="Google.Apis.Gmail.v1" />
     <PackageReference Include="Google.Apis.Auth" />
+    <!-- MIME structure parse (attachment metadata only) when ReadOptions.IncludeAttachmentMetadata is set.
+         MimeKit (MIT) is pinned centrally for the IMAP connector; reuse the same version. -->
+    <PackageReference Include="MimeKit" />
     <!-- IServiceCollection + TryAddEnumerable for AddGmailConnector(). -->
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
   </ItemGroup>
