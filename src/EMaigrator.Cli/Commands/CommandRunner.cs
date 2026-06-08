@@ -112,6 +112,24 @@ public static class CommandRunner
         finally { await host.StopAsync(ct); }
     }
 
+    public static async Task<int> RunReconcileAsync(
+        ParseResult parse, Option<Guid> idOpt, Option<string?> matchOpt, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(parse);
+        var (host, _, writer, early) = Bootstrap(parse);
+        if (early is { } e) return (int)e;
+        await host.StartAsync(ct);
+        try
+        {
+            Guid id = parse.GetValue(idOpt);
+            return (int)await ReconcileCommand.ExecuteAsync(
+                id, host.Services.GetRequiredService<IJobOrchestrator>(),
+                host.Services.GetRequiredService<IMigrationStateReader>(),
+                host.Services.GetRequiredService<ILedger>(), writer, parse.GetValue(matchOpt), ct);
+        }
+        finally { await host.StopAsync(ct); }
+    }
+
     public static async Task<int> RunStatusAsync(ParseResult parse, Option<Guid> idOpt, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(parse);

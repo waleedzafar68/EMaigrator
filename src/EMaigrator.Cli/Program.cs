@@ -18,6 +18,7 @@ public static class CommandFactory
         root.Subcommands.Add(BuildPreflightCommand());
         root.Subcommands.Add(BuildRunCommand());
         root.Subcommands.Add(BuildResumeCommand());
+        root.Subcommands.Add(BuildReconcileCommand());
         root.Subcommands.Add(BuildStatusCommand());
         root.Subcommands.Add(BuildReportCommand());
         return root;
@@ -78,6 +79,21 @@ public static class CommandFactory
         resume.Options.Add(idOpt);
         resume.SetAction((parse, ct) => CommandRunner.RunMigrationAsync(parse, idOpt, resume: true, ct));
         return resume;
+    }
+
+    private static Command BuildReconcileCommand()
+    {
+        var reconcile = new Command("reconcile",
+            "Reconcile an existing migration against the live destination (copy missing, backfill attachments).");
+        var idOpt = new Option<Guid>("--id")
+        { Description = "Existing mailbox-migration id to reconcile.", Required = true };
+        var matchOpt = new Option<string?>("--match")
+        { Description = "Match strictness: metadata (default) | hash." };
+        matchOpt.AcceptOnlyFromAmong("metadata", "hash");
+        reconcile.Options.Add(idOpt);
+        reconcile.Options.Add(matchOpt);
+        reconcile.SetAction((parse, ct) => CommandRunner.RunReconcileAsync(parse, idOpt, matchOpt, ct));
+        return reconcile;
     }
 
     private static Command BuildStatusCommand()
