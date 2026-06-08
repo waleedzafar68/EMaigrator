@@ -70,6 +70,11 @@ public class InfrastructureSecurityTests : IAsyncLifetime
     [Theory]
     [InlineData("ledger_entries", new[] { "body", "attachment", "content", "raw", "mime" })]
     [InlineData("migration_logs", new[] { "body", "attachment", "content", "raw", "mime", "sender", "recipient", "from", "to", "cc", "bcc", "address" })]
+    // jobs + mailbox_migrations are written by the reconcile path (Job.Mode, MailboxMigration.Status/counts).
+    // Their mailbox-address columns are connection METADATA (which account), not message content, so only
+    // the body/byte tokens are forbidden here — never a body/attachment/content/raw/mime column.
+    [InlineData("jobs", new[] { "body", "attachment", "content", "raw", "mime" })]
+    [InlineData("mailbox_migrations", new[] { "body", "attachment", "content", "raw", "mime" })]
     public async Task Metadata_tables_have_no_forbidden_columns(string table, string[] forbidden)
     {
         await using var conn = new NpgsqlConnection(_pg.ConnectionString);
@@ -86,6 +91,24 @@ public class InfrastructureSecurityTests : IAsyncLifetime
 
         var offending = cols.Where(c => forbidden.Any(f => c.Contains(f, StringComparison.OrdinalIgnoreCase))).ToArray();
         offending.Should().BeEmpty($"{table} columns: [{string.Join(", ", cols)}]");
+    }
+
+    [Fact]
+    public async Task Job_Mode_is_an_allowed_non_content_metadata_column()
+    {
+        // Reconcile (Plan 11) added Job.Mode. Explicitly allow-list it: it MUST exist (so the reconcile
+        // endpoint/worker can mark a run) and it MUST be plain metadata — its name carries none of the
+        // body/attachment/content/raw/mime tokens, and it stores an enum string, not message content.
+        string[] forbidden = ["body", "attachment", "content", "raw", "mime"];
+        await using var conn = new NpgsqlConnection(_pg.ConnectionString);
+        await conn.OpenAsync();
+        await using var cmd = new NpgsqlCommand(
+            "SELECT data_type FROM information_schema.columns WHERE table_name = 'jobs' AND column_name = 'Mode'", conn);
+        var dataType = (string?)await cmd.ExecuteScalarAsync();
+
+        dataType.Should().NotBeNull("the jobs table must have a Mode column after the AddJobMode migration");
+        forbidden.Any(f => "Mode".Contains(f, StringComparison.OrdinalIgnoreCase))
+            .Should().BeFalse("Job.Mode is metadata (a JobMode enum), never message content");
     }
 
     [Fact]
