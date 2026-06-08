@@ -94,6 +94,16 @@ public sealed class StatefulReconcileDestination : IDestinationProvider, IReconc
     public List<string> WrittenMessageIds { get; } = [];
     public List<(string DestMessageId, IReadOnlyList<string> Added)> Backfills { get; } = [];
 
+    /// <summary>Current stored attachment count for a message (-1 if the message is absent).</summary>
+    public int AttachmentCountOf(string messageId)
+    {
+        var key = IdentityKey.NormalizeMessageId(messageId)!;
+        lock (_gate)
+        {
+            return _store.TryGetValue(key, out var rec) ? rec.Attachments.Count : -1;
+        }
+    }
+
     /// <summary>Pre-seed the destination as it exists BEFORE reconcile (messageId → its current attachments).</summary>
     public void Seed(string messageId, params CanonicalAttachmentInfo[] attachments)
     {
@@ -183,6 +193,15 @@ public sealed class StatefulReconcileDestination : IDestinationProvider, IReconc
     public ValueTask DisposeAsync() => ValueTask.CompletedTask; // keep state across the consumer's create/dispose cycles
 }
 
+/// <summary>Returns the same connections for ANY migration id (the reconcile path only reads
+/// Dest.Settings["accountEmail"]). Lets one host serve more than one migration id (re-run tests).</summary>
+public sealed class PermissiveConnectionLookup : IMigrationConnectionLookup
+{
+    private readonly MigrationConnections _conns;
+    public PermissiveConnectionLookup(MigrationConnections conns) => _conns = conns;
+    public Task<MigrationConnections> GetAsync(Guid mailboxMigrationId, CancellationToken ct) => Task.FromResult(_conns);
+}
+
 /// <summary>Returns the SAME fake source + dest singletons every time, so state persists across runs.</summary>
 public sealed class FakeReconcileSessionFactory : IProviderSessionFactory
 {
@@ -205,7 +224,7 @@ public sealed class FakeReconcileSessionFactory : IProviderSessionFactory
 public static class ReconcileHost
 {
     public static IHost Build(
-        EmaigratorPipelineFixture fx, IConfiguration config, Guid migrationId,
+        EmaigratorPipelineFixture fx, IConfiguration config,
         MigrationConnections conns, ISourceProvider source, IDestinationProvider dest)
     {
         var orchestration = config.GetSection("Orchestration").Get<OrchestrationOptions>() ?? new OrchestrationOptions();
@@ -220,7 +239,7 @@ public static class ReconcileHost
                 services.AddSingleton<StreamingCopierFactory>();
                 services.AddSingleton<IMigrationStatusWriter, EfMigrationStatusWriter>();
                 services.AddSingleton<IRemediationPlanStore, EmptyRemediationStore>();
-                services.AddSingleton<IMigrationConnectionLookup>(new TestConnectionLookup(migrationId, conns));
+                services.AddSingleton<IMigrationConnectionLookup>(new PermissiveConnectionLookup(conns));
                 services.AddSingleton<IProviderSessionFactory>(new FakeReconcileSessionFactory(source, dest));
                 services.AddSingleton<IJobOrchestrator>(sp => new MassTransitJobOrchestrator(sp.GetRequiredService<IBus>()));
 
@@ -274,6 +293,19 @@ public static class ReconcileHost
             DestMailbox = "dest@contoso.com",
             Status = MailboxMigrationStatus.Pending,
         });
+        await ctx.SaveChangesAsync();
+    }
+
+    /// <summary>Resets a MailboxMigration to Pending so a faithful re-run of the SAME id has an
+    /// observable Pending→Running→terminal lifecycle (the destination state is left untouched).</summary>
+    public static async Task ResetToPendingAsync(IHost host, Guid migrationId)
+    {
+        var factory = host.Services.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
+        await using var ctx = await factory.CreateDbContextAsync();
+        var row = await ctx.MailboxMigrations.FirstAsync(m => m.Id == migrationId);
+        row.Status = MailboxMigrationStatus.Pending;
+        row.StartedAt = null;
+        row.FinishedAt = null;
         await ctx.SaveChangesAsync();
     }
 

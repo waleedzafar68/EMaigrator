@@ -58,7 +58,7 @@ public sealed class ReconcileNoBodyPersistenceTests
         var config = _fx.BuildConfiguration(batchSize: 1);
         var jobId = Guid.NewGuid();
         var migrationId = Guid.NewGuid();
-        using var host = ReconcileHost.Build(_fx, config, migrationId, ReconcileHost.MakeConns(jobId), source, dest);
+        using var host = ReconcileHost.Build(_fx, config, ReconcileHost.MakeConns(jobId), source, dest);
         await host.StartAsync();
         try
         {
