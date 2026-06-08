@@ -211,6 +211,75 @@ public sealed class GraphDestinationProvider : IDestinationProvider
         return page?.Value is { Count: > 0 };
     }
 
+    /// <summary>
+    /// Bulk metadata scan of a destination folder for reconcile: pages the folder's messages
+    /// ($select internetMessageId,hasAttachments) and yields one digest each. Attachment metadata is
+    /// fetched only for messages that have attachments. Never reads bodies. (IReconcilableDestination)
+    /// </summary>
+    public async IAsyncEnumerable<DestMessageDigest> ScanFolderAsync(
+        FolderPath folder, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+
+        var folderId = await ResolveExistingFolderIdAsync(folder, ct).ConfigureAwait(false);
+        if (folderId is null)
+        {
+            yield break; // missing/empty destination folder → nothing to reconcile against
+        }
+
+        var page = await _client.Users[_accountEmail].MailFolders[folderId].Messages
+            .GetAsync(
+                rc =>
+                {
+                    rc.QueryParameters.Select = ["internetMessageId", "hasAttachments"];
+                    rc.QueryParameters.Top = 100;
+                },
+                ct)
+            .ConfigureAwait(false);
+
+        while (page is not null)
+        {
+            foreach (var m in page.Value ?? [])
+            {
+                if (string.IsNullOrEmpty(m.InternetMessageId))
+                {
+                    continue; // the malformed long tail is matched by identity fallback, not this index
+                }
+
+                var atts = m.HasAttachments == true
+                    ? await FetchAttachmentMetaAsync(m.Id!, ct).ConfigureAwait(false)
+                    : (IReadOnlyList<CanonicalAttachmentInfo>)[];
+                yield return new DestMessageDigest(m.InternetMessageId!, m.Id!, atts);
+            }
+
+            if (string.IsNullOrEmpty(page.OdataNextLink))
+            {
+                break;
+            }
+
+            page = await _client.Users[_accountEmail].MailFolders[folderId].Messages
+                .WithUrl(page.OdataNextLink).GetAsync(cancellationToken: ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<IReadOnlyList<CanonicalAttachmentInfo>> FetchAttachmentMetaAsync(string messageId, CancellationToken ct)
+    {
+        var page = await _client.Users[_accountEmail].Messages[messageId].Attachments
+            .GetAsync(
+                rc => rc.QueryParameters.Select = ["name", "size", "contentType", "contentId", "isInline"],
+                ct)
+            .ConfigureAwait(false);
+
+        var list = new List<CanonicalAttachmentInfo>();
+        foreach (var a in page?.Value ?? [])
+        {
+            list.Add(new CanonicalAttachmentInfo(
+                a.Name ?? "attachment", a.ContentType ?? "application/octet-stream", a.Size ?? 0));
+        }
+
+        return list;
+    }
+
     private async Task<string> CreateChildFolderAsync(string? parentId, string displayName, CancellationToken ct)
     {
         var body = new MailFolder { DisplayName = displayName };
