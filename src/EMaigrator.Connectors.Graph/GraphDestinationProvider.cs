@@ -19,7 +19,7 @@ namespace EMaigrator.Connectors.Graph;
 /// created); throttling is surfaced as a normalized, credential-free transient error for the
 /// worker's rate-limiter to handle (ARCHITECTURE.md §5; DESIGN.md §6/§10 — bodies transit memory only).
 /// </summary>
-public sealed class GraphDestinationProvider : IDestinationProvider
+public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilableDestination
 {
     // Single-POST MIME import ceiling (length of the base64 text). Larger messages take the hybrid
     // path: import a reduced MIME (oversized parts stripped) + add those parts back via the
@@ -260,6 +260,68 @@ public sealed class GraphDestinationProvider : IDestinationProvider
             page = await _client.Users[_accountEmail].MailFolders[folderId].Messages
                 .WithUrl(page.OdataNextLink).GetAsync(cancellationToken: ct).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    /// Backfills ONLY the given missing attachments onto an existing destination message: opens the
+    /// source content, parses the MIME, extracts each matching part (Name+ContentType, case-insensitive,
+    /// multiset) and uploads it via <see cref="GraphAttachmentUploader"/>. A per-part failure increments
+    /// the failure count and continues (partial success). Bytes transit memory only. (IReconcilableDestination)
+    /// </summary>
+    [SuppressMessage(
+        "Design",
+        "CA1031:Do not catch general exception types",
+        Justification = "Any transport/protocol failure is normalized to a stable credential-free errorSignature (CONTRACTS §8).")]
+    public async Task<BackfillResult> BackfillAttachmentsAsync(
+        FolderPath folder, string destMessageId, CanonicalMessage source,
+        IReadOnlyList<CanonicalAttachmentInfo> missing, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(missing);
+        if (missing.Count == 0)
+        {
+            return new BackfillResult(0, 0);
+        }
+
+        MimeMessage parsed;
+        await using (var content = await source.OpenContentAsync(ct).ConfigureAwait(false))
+        {
+            parsed = await MimeMessage.LoadAsync(content, ct).ConfigureAwait(false);
+        }
+
+        var available = GraphMimeSplitter.Attachments(parsed).ToList();
+        int added = 0, failed = 0;
+        string? lastError = null;
+
+        foreach (var want in missing)
+        {
+            var hit = available.FirstOrDefault(a =>
+                string.Equals(a.Content.Name, want.FileName, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(a.Content.ContentType, want.ContentType, StringComparison.OrdinalIgnoreCase));
+
+            if (hit.Content is null)
+            {
+                failed++;
+                lastError = "attachment-not-found-in-source";
+                continue;
+            }
+
+            available.Remove(hit); // consume one (multiset)
+
+            var ok = await GraphAttachmentUploader
+                .AddAsync(_client, _accountEmail, destMessageId, hit.Content, ct).ConfigureAwait(false);
+            if (ok)
+            {
+                added++;
+            }
+            else
+            {
+                failed++;
+                lastError = "graph:attachment-upload-failed";
+            }
+        }
+
+        return new BackfillResult(added, failed, lastError);
     }
 
     private async Task<IReadOnlyList<CanonicalAttachmentInfo>> FetchAttachmentMetaAsync(string messageId, CancellationToken ct)

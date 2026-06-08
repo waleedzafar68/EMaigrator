@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EMaigrator.Connectors.Graph\EMaigrator.Connectors.Graph.csproj" />
+    <!-- Cross-provider capability assertion: Imap/Gmail destinations must NOT be IReconcilableDestination. -->
+    <ProjectReference Include="..\EMaigrator.Connectors.Imap\EMaigrator.Connectors.Imap.csproj" />
+    <ProjectReference Include="..\EMaigrator.Connectors.Gmail\EMaigrator.Connectors.Gmail.csproj" />
   </ItemGroup>
 
   <ItemGroup>
