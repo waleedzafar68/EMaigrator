@@ -19,6 +19,8 @@ public sealed class RecordingOrchestrator : IJobOrchestrator
 {
     public List<Guid> Enqueued { get; } = new();
 
+    public List<Guid> Reconciled { get; } = new();
+
     public List<Guid> Paused { get; } = new();
 
     public List<Guid> Resumed { get; } = new();
@@ -28,6 +30,12 @@ public sealed class RecordingOrchestrator : IJobOrchestrator
     public Task EnqueueMigrationAsync(Guid mailboxMigrationId, CancellationToken ct)
     {
         Enqueued.Add(mailboxMigrationId);
+        return Task.CompletedTask;
+    }
+
+    public Task EnqueueReconcileAsync(Guid mailboxMigrationId, CancellationToken ct)
+    {
+        Reconciled.Add(mailboxMigrationId);
         return Task.CompletedTask;
     }
 

@@ -16,6 +16,9 @@ public sealed class MassTransitJobOrchestrator : IJobOrchestrator
     public Task EnqueueMigrationAsync(Guid mailboxMigrationId, CancellationToken ct)
         => _publish.Publish(new StartMigration(mailboxMigrationId), ct);
 
+    public Task EnqueueReconcileAsync(Guid mailboxMigrationId, CancellationToken ct)
+        => _publish.Publish(new ReconcileMailbox(mailboxMigrationId), ct);
+
     public Task RequestPauseAsync(Guid jobId, CancellationToken ct)
         => _publish.Publish(new PauseJob(jobId), ct);
 

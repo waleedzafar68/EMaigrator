@@ -32,6 +32,7 @@ public class EmaigratorDbContext : DbContext
             e.Property(x => x.SourceProvider).HasConversion(providerIdConverter).HasColumnType("text");
             e.Property(x => x.DestProvider).HasConversion(providerIdConverter).HasColumnType("text");
             e.Property(x => x.Status).HasConversion<string>();
+            e.Property(x => x.Mode).HasConversion<string>().HasDefaultValue(JobMode.Migrate);
             e.HasIndex(x => x.TenantId);
             // Sentinel tenant filter: Guid.Empty (factory default) leaves reads unfiltered; the API
             // sets CurrentTenantId per request so tenant-scoped reads stay within the caller's tenant.
