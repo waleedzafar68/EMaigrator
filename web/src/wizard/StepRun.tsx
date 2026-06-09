@@ -70,7 +70,7 @@ export function StepRun() {
     const f = progress?.currentFolder;
     if (!isReconcile || !f || f === lastFolder.current) return;
     lastFolder.current = f;
-    setActivity((a) => [f, ...a].slice(0, 20));
+    setActivity((a) => [f, ...a].slice(0, 50));
   }, [isReconcile, progress?.currentFolder]);
 
   // Persist on every live event (best-effort: a full/blocked storage only loses refresh-survival).
@@ -176,7 +176,8 @@ export function StepRun() {
         {activity.length ? (
           <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-3">
             <div className="mb-2 text-xs text-fg-muted">Activity</div>
-            <ul className="space-y-1 text-sm">
+            {/* Fixed-height scroll region so a long run never pushes the controls off-screen. */}
+            <ul className="max-h-48 space-y-1 overflow-y-auto pr-1 text-sm">
               {activity.map((f, i) => (
                 <li key={`${f}-${i}`} className="flex items-center gap-2 text-fg-muted">
                   <Folder size={13} aria-hidden className="text-fg-subtle" />
