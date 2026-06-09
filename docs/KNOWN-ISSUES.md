@@ -41,11 +41,15 @@ A full live reconcile (`alice.chong@bellfield`, Google Workspace → M365, ~650 
 - **Reconcile is ~O(folders²) on the folder list.** Each folder scanned re-fetches the whole mailbox folder
   tree (`FetchFolderNodesAsync`), so a 650-folder mailbox issues ~650 full folder-list fetches. Correct but
   slow; cache the tree per reconcile run.
-- **Reconcile progress + job status don't surface in the UI.** `ReconcileConsumer` publishes no
-  `MigrationProgressEvent` and seeds no `Pending` total, so the wizard Run view sits at `0/0`; it writes the
-  migration's counts only at completion (`SetTerminalAsync`), and the parent `jobs.Status` stays `Running`
-  (only `mailbox_migrations.Status` goes terminal — `Partial` when stale failed rows exist). Wire per-folder
-  progress events + a job-status finalizer.
+- **RESOLVED 2026-06-09 — Reconcile progress + job status now surface in the UI.** `ReconcileConsumer` now
+  publishes a per-folder `MigrationProgressEvent` carrying a nested `ReconcileProgress`
+  (foldersDone/folderTotal/copied/backfilled/skipped) so the reconcile Run view shows live folder-based
+  progress, and a mode-agnostic `EfJobStatusFinalizer` rolls the parent `jobs.Status` to terminal once all
+  its mailboxes are terminal (idempotent; gates on all-mailboxes-terminal so the resume-completion race
+  below does not regress). Both migrate and reconcile publish a terminal `MigrationProgressEvent` so the
+  SignalR `StatusChanged` fires once. The compose `api` service sets `Cors__AllowedOrigins__0`
+  (`${WEB_ORIGIN:-http://localhost:3000}`) so a cross-origin SPA can negotiate the hub. (The ~O(folders²)
+  folder-list re-fetch and EF Information-level command logging below remain open.)
 - **EF command logging runs at Information in Production**, flooding worker logs with every SQL statement
   during a run; lower the `Microsoft.EntityFrameworkCore.Database.Command` category level.
 

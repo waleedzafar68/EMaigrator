@@ -65,6 +65,10 @@ services:
       Infrastructure__SecretStore__Mode: LocalKey
       Infrastructure__SecretStore__KeyRef: ${SECRET_MASTER_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-emaigrator-dev-signing-key-change-me-in-production-0123456789}
+      # SPA origin allowed by the CORS policy (AllowCredentials → explicit origins, no wildcard). The
+      # in-compose `web` service proxies same-origin, but this lets a cross-origin SPA (e.g. the Vite dev
+      # server) negotiate the SignalR hub without a "CORS policy execution failed" rejection.
+      Cors__AllowedOrigins__0: ${WEB_ORIGIN:-http://localhost:3000}
     ports:
       - "8080:8080"
     depends_on:
