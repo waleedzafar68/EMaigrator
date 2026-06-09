@@ -1,15 +1,37 @@
 import { Link } from "react-router-dom";
 import { Check } from "lucide-react";
-import { STEPS } from "./steps";
+import { STEPS, type WizardStepDef } from "./steps";
+import type { MigrationMode } from "../api/types";
 
 export function canAdvanceTo(target: number, maxReached: number): boolean {
   return target <= maxReached + 1;
 }
 
-export function Stepper({ current, maxReached, migrationId }: { current: number; maxReached: number; migrationId: string }) {
+const MODE_LABEL: Record<MigrationMode, string> = {
+  migrate: "Full migration",
+  reconcile: "Reconcile / repair",
+};
+
+export function Stepper({
+  current,
+  maxReached,
+  migrationId,
+  steps = STEPS,
+  mode,
+}: {
+  current: number;
+  maxReached: number;
+  migrationId: string;
+  steps?: WizardStepDef[];
+  mode?: MigrationMode;
+}) {
   return (
-    <ol className="mb-10 flex" aria-label="Migration steps">
-      {STEPS.map((s, i) => {
+    <div className="mb-10">
+      {mode ? (
+        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-fg-subtle">{MODE_LABEL[mode]}</p>
+      ) : null}
+      <ol className="flex" aria-label="Migration steps">
+      {steps.map((s, i) => {
         const done = i < current;
         const isCurrent = i === current;
         const reachable = i <= maxReached;
@@ -77,6 +99,7 @@ export function Stepper({ current, maxReached, migrationId }: { current: number;
           </li>
         );
       })}
-    </ol>
+      </ol>
+    </div>
   );
 }
