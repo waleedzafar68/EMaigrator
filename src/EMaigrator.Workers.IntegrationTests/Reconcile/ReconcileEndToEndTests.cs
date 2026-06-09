@@ -87,6 +87,19 @@ public sealed class ReconcileEndToEndTests
                 $"complete(A,untouched)=1  A.atts={dest.AttachmentCountOf("<a@x>")}  B.atts={dest.AttachmentCountOf("<b@x>")}  " +
                 $"ledger.Migrated={counts1.Migrated}  failed={counts1.Failed}");
 
+            // ── NEW: live progress + job-status finalization ─────────────────────────────────────
+            // The run must publish at least one MigrationProgressEvent carrying ReconcileProgress.
+            var sink = host.Services.GetRequiredService<ProgressEventSink>();
+            sink.Events.Should().Contain(e => e.Reconcile != null,
+                "the reconcile run publishes per-folder progress carrying ReconcileProgress");
+            var withReconcile = sink.Events.First(e => e.Reconcile is not null);
+            withReconcile.Reconcile!.FolderTotal.Should().BeGreaterThan(0);
+
+            // On completion the parent job's status is finalized terminal (mode-agnostic finalizer).
+            var jobStatus = await ReconcileHost.WaitJobTerminalAsync(host, jobId);
+            jobStatus.Should().BeOneOf(JobStatus.Completed, JobStatus.Partial);
+            _out.WriteLine($"progress events with ReconcileProgress={sink.Events.Count(e => e.Reconcile != null)}  jobs.Status={jobStatus}");
+
             // ── Run 2: idempotent re-run over the now-matched destination ─────────────────────────
             await ReconcileHost.ResetToPendingAsync(host, migrationId);
             await orchestrator.EnqueueReconcileAsync(migrationId, CancellationToken.None);

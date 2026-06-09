@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -6,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EMaigrator.Core.Abstractions;
+using EMaigrator.Core.Contracts;
 using EMaigrator.Core.Idempotency;
 using EMaigrator.Core.Model;
 using EMaigrator.Workers.Consumers;
@@ -218,6 +220,27 @@ public sealed class FakeReconcileSessionFactory : IProviderSessionFactory
     public Task<IDestinationProvider> CreateDestinationAsync(Guid mailboxMigrationId, CancellationToken ct) => Task.FromResult(_dest);
 }
 
+/// <summary>Thread-safe sink the recording consumer appends every published MigrationProgressEvent to,
+/// so a test can assert the run emitted live reconcile progress.</summary>
+public sealed class ProgressEventSink
+{
+    public ConcurrentBag<MigrationProgressEvent> Events { get; } = new();
+}
+
+/// <summary>Records every MigrationProgressEvent published on the bus into the shared sink.</summary>
+public sealed class RecordingProgressConsumer : IConsumer<MigrationProgressEvent>
+{
+    private readonly ProgressEventSink _sink;
+    public RecordingProgressConsumer(ProgressEventSink sink) => _sink = sink;
+
+    public Task Consume(ConsumeContext<MigrationProgressEvent> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        _sink.Events.Add(context.Message);
+        return Task.CompletedTask;
+    }
+}
+
 /// <summary>Builds a worker host that drives the REAL ReconcileConsumer over the live containers, with
 /// only the provider boundary faked (sanctioned for the reconcile gates). Real Postgres ledger + EF
 /// status writer + Redis rate-limiter + RabbitMQ bus.</summary>
@@ -243,10 +266,13 @@ public static class ReconcileHost
                 services.AddSingleton<IMigrationConnectionLookup>(new PermissiveConnectionLookup(conns));
                 services.AddSingleton<IProviderSessionFactory>(new FakeReconcileSessionFactory(source, dest));
                 services.AddSingleton<IJobOrchestrator>(sp => new MassTransitJobOrchestrator(sp.GetRequiredService<IBus>()));
+                services.AddSingleton<ProgressEventSink>();
 
                 services.AddMassTransit(x =>
                 {
                     x.AddConsumer<ReconcileConsumer>();
+                    // Records published MigrationProgressEvents so the functional gate can assert live progress.
+                    x.AddConsumer<RecordingProgressConsumer>();
                     x.UsingRabbitMq((ctx, cfg) =>
                     {
                         cfg.Host(new Uri(fx.RabbitMqConnectionString));
@@ -327,6 +353,26 @@ public static class ReconcileHost
         }
 
         return MailboxMigrationStatus.Running; // timed out (caller asserts terminal)
+    }
+
+    /// <summary>Polls the owning Job row (bounded) until its status reaches a terminal JobStatus.</summary>
+    public static async Task<JobStatus> WaitJobTerminalAsync(IHost host, Guid jobId, int maxSeconds = 30)
+    {
+        var factory = host.Services.GetRequiredService<IDbContextFactory<EmaigratorDbContext>>();
+        for (var attempt = 0; attempt < maxSeconds; attempt++)
+        {
+            await using var ctx = await factory.CreateDbContextAsync();
+            var job = await ctx.Jobs.AsNoTracking().FirstOrDefaultAsync(j => j.Id == jobId);
+            if (job is not null && job.Status is JobStatus.Completed
+                or JobStatus.Partial or JobStatus.Failed or JobStatus.Cancelled)
+            {
+                return job.Status;
+            }
+
+            await Task.Delay(500);
+        }
+
+        return JobStatus.Running; // timed out (caller asserts terminal)
     }
 
     /// <summary>
