@@ -82,6 +82,57 @@ public sealed class ReconcileEndpointTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task Reconcile_resets_mailbox_rows_for_a_fresh_run()
+    {
+        var (client, tenantId) = await AuthClient.CreateAsync(_factory);
+        var (jobId, mailboxId) = await SeedJob(tenantId);
+
+        // Stamp run-1 leftovers so the reset is observable.
+        using (var scope = _factory.Services.CreateScope())
+        {
+            ((TestCurrentTenant)scope.ServiceProvider.GetRequiredService<ICurrentTenant>()).Current = tenantId;
+            var db = scope.ServiceProvider.GetRequiredService<EmaigratorDbContext>();
+            var row = db.MailboxMigrations.Single(m => m.Id == mailboxId);
+            row.StartedAt = DateTimeOffset.UtcNow.AddHours(-2);
+            row.FinishedAt = DateTimeOffset.UtcNow.AddHours(-1);
+            await db.SaveChangesAsync();
+        }
+
+        using var res = await client.PostAsync($"/api/v1/migrations/{jobId}/reconcile", null);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // The status writer only advances Pending rows and never overwrites a terminal row, so a
+        // re-run must reset the row or this run's counts/duration/status are silently discarded.
+        using var scope2 = _factory.Services.CreateScope();
+        ((TestCurrentTenant)scope2.ServiceProvider.GetRequiredService<ICurrentTenant>()).Current = tenantId;
+        var db2 = scope2.ServiceProvider.GetRequiredService<EmaigratorDbContext>();
+        var mbx = db2.MailboxMigrations.Single(m => m.Id == mailboxId);
+        mbx.Status.Should().Be(MailboxMigrationStatus.Pending);
+        mbx.StartedAt.Should().BeNull();
+        mbx.FinishedAt.Should().BeNull();
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Reconcile_while_already_running_returns_409()
+    {
+        var (client, tenantId) = await AuthClient.CreateAsync(_factory);
+        var (jobId, _) = await SeedJob(tenantId);
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            ((TestCurrentTenant)scope.ServiceProvider.GetRequiredService<ICurrentTenant>()).Current = tenantId;
+            var db = scope.ServiceProvider.GetRequiredService<EmaigratorDbContext>();
+            var job = db.Jobs.Single(j => j.Id == jobId);
+            job.Status = JobStatus.Running;
+            await db.SaveChangesAsync();
+        }
+
+        using var res = await client.PostAsync($"/api/v1/migrations/{jobId}/reconcile", null);
+
+        res.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task Reconcile_cross_tenant_id_returns_404()
     {
         var (_, ownerTenant) = await AuthClient.CreateAsync(_factory);

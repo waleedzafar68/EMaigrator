@@ -13,9 +13,14 @@ import { AuditTable } from "./AuditTable";
 // Prefer the job's real status (API ResultsDto.Status) for the header; fall back to a reconciliation-
 // derived label when it is somehow absent (e.g. an older API). A "Completed" job reads as complete;
 // any other terminal/outstanding status surfaces in the header so the operator sees the true outcome.
+// Statuses where a run is still active — the page must not claim completion or offer a new reconcile.
+const IN_PROGRESS = ["Queued", "PreFlight", "AwaitingApproval", "Running", "Paused"];
+
 function resultsHeader(data: ResultsDto): string {
   if (data.status) {
-    return data.status === "Completed" ? "Migration complete" : `Migration complete — ${data.status}`;
+    if (data.status === "Completed") return "Migration complete";
+    if (IN_PROGRESS.includes(data.status)) return `Run in progress — ${data.status}`;
+    return `Migration complete — ${data.status}`;
   }
   const clean = data.reconciliation.matched && data.counts.failed === 0;
   return clean ? "Migration complete" : "Migration complete — Partial";
@@ -98,8 +103,11 @@ export function Results() {
         <p className="text-sm text-fg-muted">
           Re-scan the destination and copy any messages still missing + backfill missing attachments. Non-destructive · idempotent.
         </p>
-        {reconcileStarted ? (
-          <p role="status" className="inline-flex items-center gap-1.5 text-sm text-accent"><RefreshCw size={14} aria-hidden className="animate-spin" /> Reconcile started — now running.</p>
+        {reconcileStarted || (data.status && IN_PROGRESS.includes(data.status)) ? (
+          <p role="status" className="inline-flex items-center gap-1.5 text-sm text-accent">
+            <RefreshCw size={14} aria-hidden className="animate-spin" />
+            {reconcileStarted ? "Reconcile started — now running." : "A run is already running — reconcile again once it finishes."}
+          </p>
         ) : (
           <Button type="button" onClick={onReconcile} disabled={reconciling}>
             {reconciling ? "Reconciling…" : "Reconcile / repair"}

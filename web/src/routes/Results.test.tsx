@@ -39,6 +39,16 @@ describe("Results", () => {
     expect(screen.getByText(/took 12:34/i)).toBeInTheDocument(); // 754s → 12:34
   });
 
+  it("shows an in-progress header and no reconcile button while the job is running", async () => {
+    vi.spyOn(api, "getResults").mockResolvedValue({ ...results, status: "Running", needsDecision: [] } as never);
+    vi.spyOn(api, "getAudit").mockResolvedValue([] as never);
+    render(<Results />);
+    expect(await screen.findByText(/run in progress — running/i)).toBeInTheDocument();
+    expect(screen.queryByText(/migration complete/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reconcile \/ repair/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/already running/i)).toBeInTheDocument();
+  });
+
   it("falls back to a reconciliation-derived header when status is absent", async () => {
     const noStatus = { counts: { migrated: 10, skipped: 0, failed: 0 }, reconciliation: { sourceCount: 10, destCount: 10, matched: true }, needsDecision: [], durationSeconds: null, logDeletesAt: null };
     vi.spyOn(api, "getResults").mockResolvedValue(noStatus as never);
