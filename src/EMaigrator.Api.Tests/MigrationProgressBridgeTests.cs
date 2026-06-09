@@ -43,6 +43,45 @@ public sealed class MigrationProgressBridgeTests
     }
 
     [Fact]
+    public async Task Consuming_reconcile_progress_event_carries_reconcile_counts()
+    {
+        var notifier = Substitute.For<IMigrationGroupNotifier>();
+        var lookup = Substitute.For<IMailboxJobLookup>();
+        var mbxId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        lookup.GetJobIdAsync(mbxId, Arg.Any<CancellationToken>()).Returns(jobId);
+
+        var bridge = new MigrationProgressBridge(notifier, lookup, NullLogger<MigrationProgressBridge>.Instance);
+
+        var ctx = Substitute.For<ConsumeContext<MigrationProgressEvent>>();
+        ctx.Message.Returns(new MigrationProgressEvent(mbxId, 0, 0, "/Inbox", 0, "Running",
+            new ReconcileProgress(1, 10, 5, 1, 2)));
+        await bridge.Consume(ctx);
+
+        await notifier.Received(1).PushProgressAsync(Arg.Is<MigrationProgressDto>(
+            d => d.Reconcile != null && d.Reconcile.Copied == 5 && d.Reconcile.FolderTotal == 10
+                 && d.Reconcile.Backfilled == 1 && d.Reconcile.Skipped == 2 && d.Reconcile.FoldersDone == 1));
+    }
+
+    [Fact]
+    public async Task Consuming_migrate_progress_event_leaves_reconcile_null()
+    {
+        var notifier = Substitute.For<IMigrationGroupNotifier>();
+        var lookup = Substitute.For<IMailboxJobLookup>();
+        var mbxId = Guid.NewGuid();
+        var jobId = Guid.NewGuid();
+        lookup.GetJobIdAsync(mbxId, Arg.Any<CancellationToken>()).Returns(jobId);
+
+        var bridge = new MigrationProgressBridge(notifier, lookup, NullLogger<MigrationProgressBridge>.Instance);
+
+        var ctx = Substitute.For<ConsumeContext<MigrationProgressEvent>>();
+        ctx.Message.Returns(new MigrationProgressEvent(mbxId, 7, 10, "/Sent", 99.0, "Running"));
+        await bridge.Consume(ctx);
+
+        await notifier.Received(1).PushProgressAsync(Arg.Is<MigrationProgressDto>(d => d.Reconcile == null));
+    }
+
+    [Fact]
     public async Task Consuming_needs_decision_event_resolves_job_and_pushes_to_job_group()
     {
         var notifier = Substitute.For<IMigrationGroupNotifier>();

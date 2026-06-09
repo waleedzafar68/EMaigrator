@@ -55,11 +55,15 @@ public sealed partial class MigrationProgressBridge :
         }
 
         var migrationId = jobId.Value.ToString();
+        var reconcile = m.Reconcile is null
+            ? null
+            : new ReconcileProgressDto(m.Reconcile.FoldersDone, m.Reconcile.FolderTotal,
+                m.Reconcile.Copied, m.Reconcile.Backfilled, m.Reconcile.Skipped);
         try
         {
             await Task.WhenAll(
                 _notifier.PushProgressAsync(
-                    new MigrationProgressDto(migrationId, m.Migrated, m.Total, m.CurrentFolder, m.MsgPerMin, m.Status)),
+                    new MigrationProgressDto(migrationId, m.Migrated, m.Total, m.CurrentFolder, m.MsgPerMin, m.Status, reconcile)),
                 _notifier.PushStatusChangedAsync(migrationId, m.Status))
                 .ConfigureAwait(false);
         }
