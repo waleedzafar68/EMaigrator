@@ -56,6 +56,57 @@ public sealed class ScopeEndpointTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task Json_single_scope_with_empty_pairs_derives_one_mailbox_from_connections()
+    {
+        var (client, _) = await AuthClient.CreateAsync(_factory);
+        var id = await NewDraft(client);
+
+        // Single mode never types a pair in Scope — the one mailbox is derived from the connections'
+        // accountEmail. Configure both sides first.
+        (await client.PutAsJsonAsync($"/api/v1/migrations/{id}/connection/from", new
+        {
+            auth = "ImapBasic",
+            settings = new { host = "imap.example.com", port = "993", region = "us-east-1", accountEmail = "alice@source.com" },
+            secret = "pw",
+        })).StatusCode.Should().Be(HttpStatusCode.OK);
+        (await client.PutAsJsonAsync($"/api/v1/migrations/{id}/connection/to", new
+        {
+            auth = "GraphAppOAuth",
+            settings = new { tenantId = "t", clientId = "c", accountEmail = "alice@dest.com" },
+            secret = "cs",
+        })).StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var res = await client.PutAsJsonAsync($"/api/v1/migrations/{id}/scope", new
+        {
+            isBatch = false,
+            pairs = Array.Empty<object>(),
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+        var dto = await res.Content.ReadFromJsonAsync<JsonElement>();
+        dto.GetProperty("isBatch").GetBoolean().Should().BeFalse();
+        dto.GetProperty("mailboxCount").GetInt32().Should().Be(1, "single mode creates exactly one mailbox row");
+        dto.GetProperty("scopeSummary").GetString().Should().Contain("alice@source.com").And.Contain("alice@dest.com");
+        dto.GetProperty("wizardStep").GetInt32().Should().BeGreaterThanOrEqualTo(3);
+    }
+
+    [Fact]
+    public async Task Json_single_scope_with_empty_pairs_and_no_connections_returns_400()
+    {
+        var (client, _) = await AuthClient.CreateAsync(_factory);
+        var id = await NewDraft(client);
+
+        // No connections configured → nothing to derive the mailbox from → an honest 400 (not a 500/silent no-op).
+        var res = await client.PutAsJsonAsync($"/api/v1/migrations/{id}/scope", new
+        {
+            isBatch = false,
+            pairs = Array.Empty<object>(),
+        });
+
+        res.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Multipart_csv_persists_batch()
     {
         var (client, _) = await AuthClient.CreateAsync(_factory);

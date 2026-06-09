@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using EMaigrator.Api.Contracts;
 using EMaigrator.Api.Mapping;
 using EMaigrator.Api.Services;
+using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Preflight;
 using EMaigrator.Infrastructure.Data;
 using Microsoft.AspNetCore.Builder;
@@ -26,6 +28,8 @@ namespace EMaigrator.Api.Endpoints;
 public static class ScopeEndpoints
 {
     private static readonly string[] PairsRequired = ["at least one mailbox pair is required"];
+    private static readonly string[] ConnectionRequired =
+        ["connect both the source and destination (with an account email) before setting scope"];
 
     public static RouteGroupBuilder MapScopeEndpoints(this RouteGroupBuilder group)
     {
@@ -73,15 +77,36 @@ public static class ScopeEndpoints
         else
         {
             var scope = await request.ReadFromJsonAsync<ScopeRequest>();
-            if (scope?.Pairs is null || scope.Pairs.Count == 0)
+            isBatch = scope?.IsBatch ?? false;
+            since = scope?.Since;
+            before = scope?.Before;
+
+            var requestPairs = scope?.Pairs;
+            if (requestPairs is not null && requestPairs.Count > 0)
             {
+                pairs = requestPairs.Select(p => new MailboxPair(p.SourceMailbox, p.DestMailbox)).ToList();
+            }
+            else if (!isBatch)
+            {
+                // Single mode never types a pair in Scope — its ONE mailbox is the source→dest accountEmail
+                // from the configured connections. Without this, a single-mode scope ({isBatch:false,
+                // pairs:[]}) returned 400 "at least one mailbox pair is required", which the wizard's Continue
+                // swallowed — the silent "dead Continue".
+                var sourceMailbox = AccountEmailFromConnection(job.SourceConnectionRef);
+                var destMailbox = AccountEmailFromConnection(job.DestConnectionRef);
+                if (sourceMailbox is null || destMailbox is null)
+                {
+                    return Results.ValidationProblem(
+                        new Dictionary<string, string[]> { ["connection"] = ConnectionRequired });
+                }
+
+                pairs = [new MailboxPair(sourceMailbox, destMailbox)];
+            }
+            else
+            {
+                // Batch mode still requires explicit pairs (JSON) or a CSV upload (handled above).
                 return Results.ValidationProblem(new Dictionary<string, string[]> { ["pairs"] = PairsRequired });
             }
-
-            pairs = scope.Pairs.Select(p => new MailboxPair(p.SourceMailbox, p.DestMailbox)).ToList();
-            isBatch = scope.IsBatch;
-            since = scope.Since;
-            before = scope.Before;
         }
 
         // Replace the job's existing mailbox rows with the new scope.
@@ -108,5 +133,33 @@ public static class ScopeEndpoints
 
         var mailboxes = await db.MailboxMigrations.AsNoTracking().Where(m => m.JobId == id).ToListAsync();
         return Results.Ok(MigrationMapper.ToDto(job, mailboxes));
+    }
+
+    // Reads the mailbox address (the universal "accountEmail" settings key all three connectors store —
+    // see the wizard's StepConnect) from a serialized ConnectionDescriptor. Returns null when the side is
+    // unconfigured or malformed, so single-mode scope fails with a clear 400 instead of a silent no-op.
+    private static string? AccountEmailFromConnection(string? connectionRef)
+    {
+        if (string.IsNullOrEmpty(connectionRef))
+        {
+            return null;
+        }
+
+        try
+        {
+            var descriptor = JsonSerializer.Deserialize<ConnectionDescriptor>(connectionRef);
+            if (descriptor?.Settings is not null &&
+                descriptor.Settings.TryGetValue("accountEmail", out var email) &&
+                !string.IsNullOrWhiteSpace(email))
+            {
+                return email;
+            }
+        }
+        catch (JsonException)
+        {
+            // Malformed ref → treat as unconfigured (the caller returns a guiding 400).
+        }
+
+        return null;
     }
 }
