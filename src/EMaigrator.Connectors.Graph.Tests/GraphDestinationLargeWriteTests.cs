@@ -22,6 +22,9 @@ public class GraphDestinationLargeWriteTests : IDisposable
         }
         """;
 
+    private const string CreatedDraftJson =
+        """{ "id": "draft-id", "internetMessageId": "<m1@contoso.com>", "subject": "x" }""";
+
     private const string CreatedMessageJson =
         """{ "id": "imported-msg-id", "internetMessageId": "<m1@contoso.com>", "subject": "x" }""";
 
@@ -33,11 +36,20 @@ public class GraphDestinationLargeWriteTests : IDisposable
                .RespondWith(Response.Create().WithStatusCode(200)
                    .WithHeader("Content-Type", "application/json").WithBody(FoldersListJson));
 
-    private void StubImport() =>
-        _server.Given(Request.Create()
-                   .WithPath("/v1.0/users/user@contoso.com/mailFolders/projects-id/messages").UsingPost())
+    // Live MIME-import flow: top-level create (draft "draft-id") → move into the folder (post-move id
+    // "imported-msg-id", which attachments then address) → isRead PATCH.
+    private void StubWriteFlow()
+    {
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages").UsingPost())
+               .RespondWith(Response.Create().WithStatusCode(201)
+                   .WithHeader("Content-Type", "application/json").WithBody(CreatedDraftJson));
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages/draft-id/move").UsingPost())
                .RespondWith(Response.Create().WithStatusCode(201)
                    .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages/imported-msg-id").UsingMethod("PATCH"))
+               .RespondWith(Response.Create().WithStatusCode(200)
+                   .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+    }
 
     private static CanonicalMessage MessageFrom(byte[] raw) => new()
     {
@@ -72,10 +84,10 @@ public class GraphDestinationLargeWriteTests : IDisposable
         (e.RequestMessage?.Path?.EndsWith(pathEndsWith, StringComparison.Ordinal) ?? false));
 
     [Fact]
-    public async Task Small_message_uses_single_post_no_attachment_calls()
+    public async Task Small_message_uses_single_import_no_attachment_calls()
     {
         StubFolders();
-        StubImport();
+        StubWriteFlow();
 
         var result = await NewProvider().WriteMessageAsync(
             FolderPath.Parse("Inbox/Projects"),
@@ -85,16 +97,18 @@ public class GraphDestinationLargeWriteTests : IDisposable
         result.Written.Should().BeTrue();
         result.DestMessageId.Should().Be("imported-msg-id");
 
-        _server.LogEntries.Count(e => e.RequestMessage?.Method == "POST").Should().Be(1);
-        PostCount("/mailFolders/projects-id/messages").Should().Be(1);
+        // A small message is exactly one (top-level) import + one move; no attachment calls.
+        PostCount("/user@contoso.com/messages").Should().Be(1);
+        PostCount("/messages/draft-id/move").Should().Be(1);
         PostCount("/createUploadSession").Should().Be(0);
+        _server.LogEntries.Count(e => e.RequestMessage?.Method == "POST").Should().Be(2);
     }
 
     [Fact]
     public async Task Large_message_strips_oversized_part_and_uploads_via_session()
     {
         StubFolders();
-        StubImport();
+        StubWriteFlow();
 
         var uploadUrl = _server.Url! + "/uploadsession/abc";
         _server.Given(Request.Create()
@@ -113,7 +127,8 @@ public class GraphDestinationLargeWriteTests : IDisposable
         result.Written.Should().BeTrue();
         result.DestMessageId.Should().Be("imported-msg-id");
 
-        PostCount("/mailFolders/projects-id/messages").Should().Be(1);   // exactly one (reduced) import
+        PostCount("/user@contoso.com/messages").Should().Be(1);          // exactly one (reduced) import
+        PostCount("/messages/draft-id/move").Should().Be(1);             // moved into the destination folder
         PostCount("/createUploadSession").Should().Be(1);                // the stripped part, re-uploaded
         _server.LogEntries.Count(e =>
             e.RequestMessage?.Method == "PUT" &&
@@ -125,7 +140,7 @@ public class GraphDestinationLargeWriteTests : IDisposable
     public async Task Signed_message_is_not_stripped()
     {
         StubFolders();
-        StubImport();
+        StubWriteFlow();
 
         // Top-level application/pkcs7-mime, > 4 MB base64 → hybrid path but S/MIME guard → no stripping.
         var blob = new string('A', 4_000_000); // ~4 MB raw → base64(MIME) > 4 MB
@@ -137,7 +152,8 @@ public class GraphDestinationLargeWriteTests : IDisposable
             FolderPath.Parse("Inbox/Projects"), MessageFrom(Encoding.ASCII.GetBytes(raw)), CancellationToken.None);
 
         result.Written.Should().BeTrue();
-        PostCount("/mailFolders/projects-id/messages").Should().Be(1);   // single whole-MIME import attempt
+        PostCount("/user@contoso.com/messages").Should().Be(1);          // single whole-MIME import attempt
+        PostCount("/messages/draft-id/move").Should().Be(1);             // moved into the destination folder
         PostCount("/createUploadSession").Should().Be(0);                // never stripped
         _server.LogEntries.Count(e =>
             e.RequestMessage?.Method == "POST" &&

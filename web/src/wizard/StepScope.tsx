@@ -16,6 +16,7 @@ export function StepScope() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [newSource, setNewSource] = useState("");
   const [newDest, setNewDest] = useState("");
+  const [since, setSince] = useState("");
 
   async function onCsv(file: File) {
     const text = await new Promise<string>((resolve, reject) => {
@@ -31,6 +32,8 @@ export function StepScope() {
 
   async function onContinue() {
     const scope: ScopeRequest = { isBatch, pairs };
+    // A date-only input is widened to an explicit UTC instant so the API's DateTimeOffset binder accepts it.
+    if (since) scope.since = new Date(`${since}T00:00:00Z`).toISOString();
     await saveScope(scope);
     navigate(`/migrations/${migration.id}/review`);
   }
@@ -92,6 +95,11 @@ export function StepScope() {
       ) : (
         <p className="text-fg-muted">Migrating one mailbox. Confirm and continue.</p>
       )}
+
+      <label className="block text-sm">Only mail since (optional — limits a migrate or reconcile to a recent window)
+        <input aria-label="Since date" type="date" value={since} onChange={(e) => setSince(e.target.value)}
+          className="mt-1 block h-[var(--control-h)] rounded-[6px] border border-border-strong px-2" />
+      </label>
 
       <button type="button" className="text-sm text-fg-muted" aria-expanded={showAdvanced}
         onClick={() => setShowAdvanced((s) => !s)}>▸ Advanced</button>

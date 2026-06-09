@@ -6,7 +6,9 @@ COPY src/ ./src/
 RUN dotnet restore src/EMaigrator.Workers/EMaigrator.Workers.csproj
 RUN dotnet publish src/EMaigrator.Workers/EMaigrator.Workers.csproj -c Release -o /out --no-restore
 
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS runtime
+# aspnet (not plain runtime): the Workers publish output requires the Microsoft.AspNetCore.App
+# shared framework (pulled in transitively via EMaigrator.Infrastructure — SignalR/hosting/health).
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 COPY --from=build /out ./
 ENTRYPOINT ["dotnet", "EMaigrator.Workers.dll"]

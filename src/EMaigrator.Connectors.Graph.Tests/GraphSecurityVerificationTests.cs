@@ -102,8 +102,9 @@ public class GraphSecurityVerificationTests
         server2.Given(Request.Create().WithPath("/v1.0/users/" + Account + "/mailFolders").UsingGet())
                .RespondWith(Response.Create().WithStatusCode(200)
                    .WithHeader("Content-Type", "application/json").WithBody(FoldersListJson));
+        // The import is the top-level POST /messages; a 429 there fails the write before any move/PATCH.
         server2.Given(Request.Create()
-                   .WithPath("/v1.0/users/" + Account + "/mailFolders/projects-id/messages").UsingPost())
+                   .WithPath("/v1.0/users/" + Account + "/messages").UsingPost())
                .RespondWith(Response.Create().WithStatusCode(429)
                    .WithHeader("Content-Type", "application/json").WithHeader("Retry-After", "9")
                    .WithBody($"{{\"error\":{{\"code\":\"errorThrottledRequest\",\"message\":\"tenant {Tenant} secret {Secret}\"}}}}"));
@@ -212,7 +213,7 @@ public class GraphSecurityVerificationTests
               .RespondWith(Response.Create().WithStatusCode(200)
                   .WithHeader("Content-Type", "application/json").WithBody(FoldersListJson));
         server.Given(Request.Create()
-                  .WithPath("/v1.0/users/" + Account + "/mailFolders/projects-id/messages").UsingPost())
+                  .WithPath("/v1.0/users/" + Account + "/messages").UsingPost())
               .RespondWith(Response.Create().WithStatusCode(429)
                   .WithHeader("Content-Type", "application/json").WithHeader("Retry-After", "9")
                   .WithBody($"{{\"error\":{{\"code\":\"errorThrottledRequest\",\"message\":\"tenant {Tenant}\"}}}}"));

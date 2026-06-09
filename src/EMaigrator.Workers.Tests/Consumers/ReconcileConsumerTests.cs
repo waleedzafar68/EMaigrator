@@ -122,7 +122,7 @@ public sealed class ReconcileConsumerTests
 
         var dst = ReconcilableDest();
         var rec = (IReconcilableDestination)dst;
-        rec.ScanFolderAsync(Arg.Any<FolderPath>(), Arg.Any<CancellationToken>())
+        rec.ScanFolderAsync(Arg.Any<FolderPath>(), Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
             .Returns(_ => Digests(
                 new DestMessageDigest("<a@x>", "destA", new[] { Att1 }),
                 new DestMessageDigest("<b@x>", "destB", new[] { Att1 })));
@@ -199,7 +199,7 @@ public sealed class ReconcileConsumerTests
 
         var dst = ReconcilableDest();
         var rec = (IReconcilableDestination)dst;
-        rec.ScanFolderAsync(Arg.Any<FolderPath>(), Arg.Any<CancellationToken>())
+        rec.ScanFolderAsync(Arg.Any<FolderPath>(), Arg.Any<DateTimeOffset?>(), Arg.Any<DateTimeOffset?>(), Arg.Any<CancellationToken>())
             .Returns(_ => Digests(
                 new DestMessageDigest("<a@x>", "destA", new[] { Att1 }),
                 new DestMessageDigest("<b@x>", "destB", new[] { Att1, Att2 }),

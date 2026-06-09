@@ -63,6 +63,9 @@ public class GraphRoundTripFunctionalTests : IDisposable
         }
         """;
 
+    private const string CreatedDraftJson =
+        """{ "id": "draft-id", "internetMessageId": "<m1@contoso.com>", "subject": "Hi" }""";
+
     private const string CreatedMessageJson =
         """{ "id": "imported-msg-id", "internetMessageId": "<m1@contoso.com>", "subject": "Hi" }""";
 
@@ -95,9 +98,18 @@ public class GraphRoundTripFunctionalTests : IDisposable
              .RespondWith(Response.Create().WithStatusCode(200)
                  .WithHeader("Content-Type", "application/json").WithBody(FoldersListJson));
 
+        // Live MIME-import flow: top-level create (draft) → move into Inbox/Projects → isRead PATCH.
         _dest.Given(Request.Create()
-                 .WithPath($"/v1.0/users/{Account}/mailFolders/projects-id/messages").UsingPost())
+                 .WithPath($"/v1.0/users/{Account}/messages").UsingPost())
              .RespondWith(Response.Create().WithStatusCode(201)
+                 .WithHeader("Content-Type", "application/json").WithBody(CreatedDraftJson));
+        _dest.Given(Request.Create()
+                 .WithPath($"/v1.0/users/{Account}/messages/draft-id/move").UsingPost())
+             .RespondWith(Response.Create().WithStatusCode(201)
+                 .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+        _dest.Given(Request.Create()
+                 .WithPath($"/v1.0/users/{Account}/messages/imported-msg-id").UsingMethod("PATCH"))
+             .RespondWith(Response.Create().WithStatusCode(200)
                  .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
 
         var source = new GraphSourceProvider(GraphTestClientFactory.Create(_source.Url!), Account);
@@ -123,12 +135,15 @@ public class GraphRoundTripFunctionalTests : IDisposable
         write.Written.Should().BeTrue();
         write.DestMessageId.Should().Be("imported-msg-id");
 
-        // ---------- ASSERT: the POSTed bytes decode (base64) back to the exact source MIME ----------
-        var post = _dest.LogEntries.Single(e => e.RequestMessage?.Method == "POST");
-        post.RequestMessage!.Headers!["Content-Type"].First().Should().Contain("text/plain");
+        // ---------- ASSERT: the imported bytes decode (base64) back to the exact source MIME ----------
+        // The MIME goes to the TOP-LEVEL /messages endpoint (the folder-scoped one rejects MIME); the
+        // subsequent move POST is excluded by matching the import path specifically.
+        var import = _dest.LogEntries.Single(e =>
+            e.RequestMessage?.Method == "POST" &&
+            (e.RequestMessage.Path?.EndsWith($"/{Account}/messages", StringComparison.Ordinal) ?? false));
+        import.RequestMessage!.Headers!["Content-Type"].First().Should().Contain("text/plain");
 
-        var postedBase64 = post.RequestMessage!.Body!;
-        var decoded = Encoding.ASCII.GetString(Convert.FromBase64String(postedBase64.Trim()));
+        var decoded = Encoding.ASCII.GetString(Convert.FromBase64String(import.RequestMessage!.Body!.Trim()));
         decoded.Should().Be(SourceMime);
 
         // ---------- ASSERT: dedup-by-Message-ID is wired (exists GET now reports the imported message) ----------

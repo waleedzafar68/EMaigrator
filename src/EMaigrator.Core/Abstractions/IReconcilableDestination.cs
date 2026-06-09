@@ -10,8 +10,11 @@ namespace EMaigrator.Core.Abstractions;
 /// </summary>
 public interface IReconcilableDestination
 {
-    /// <summary>Page the destination folder once; yield a metadata-only digest per message (no bodies).</summary>
-    IAsyncEnumerable<DestMessageDigest> ScanFolderAsync(FolderPath folder, CancellationToken ct);
+    /// <summary>Page the destination folder once; yield a metadata-only digest per message (no bodies).
+    /// When <paramref name="since"/>/<paramref name="before"/> are set the scan is restricted to that
+    /// received-date window so a date-scoped reconcile reads only the relevant slice of a large folder.</summary>
+    IAsyncEnumerable<DestMessageDigest> ScanFolderAsync(
+        FolderPath folder, DateTimeOffset? since, DateTimeOffset? before, CancellationToken ct);
 
     /// <summary>Backfill ONLY the given missing attachments onto an existing destination message. The
     /// implementation opens <paramref name="source"/>'s content, parses the MIME, extracts just the

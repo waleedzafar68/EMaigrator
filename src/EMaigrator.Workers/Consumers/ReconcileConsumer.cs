@@ -86,16 +86,26 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
         var copier = _copierFactory.For(_ledger, _limiter, dest);
         var approved = await _plans.GetApprovedAsync(mid, ct);
         var constraints = dest.Constraints;
-        var options = new ReadOptions { IncludeAttachmentMetadata = true };
+        // Honor the job's optional date window so a reconcile can be scoped to a smaller slice; the
+        // connectors translate Since/Before into their native query (Gmail after:/before:, Graph filter,
+        // IMAP SEARCH). IncludeAttachmentMetadata drives the per-message backfill diff.
+        var options = new ReadOptions
+        {
+            IncludeAttachmentMetadata = true,
+            Since = conns.Since,
+            Before = conns.Before,
+        };
 
         foreach (var folder in await source.ListFoldersAsync(ct))
         {
             var destPath = FolderRemediationResolver.Resolve(folder.Path, approved, constraints);
             await dest.EnsureFolderAsync(destPath, ct);
+            var folderName = folder.Path.ToString();
+            LogFolderStart(mid, folderName);
 
-            // 1) Bulk pre-scan the live destination → index by normalized Message-ID (metadata only).
+            // 1) Bulk pre-scan the live destination (within the date window) → index by normalized Message-ID.
             var index = new Dictionary<string, DestMessageDigest>(StringComparer.OrdinalIgnoreCase);
-            await foreach (var d in reconcilable.ScanFolderAsync(destPath, ct))
+            await foreach (var d in reconcilable.ScanFolderAsync(destPath, conns.Since, conns.Before, ct))
             {
                 var k = IdentityKey.NormalizeMessageId(d.InternetMessageId);
                 if (k is not null)
@@ -105,6 +115,7 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
             }
 
             // 2) Enumerate the source (with attachment metadata) and classify each message.
+            int copied = 0, backfilled = 0, skipped = 0;
             await foreach (var msg in source.ReadMessagesAsync(folder.Path, options, ct))
             {
                 var key = msg.MessageId is null ? null : IdentityKey.NormalizeMessageId(msg.MessageId);
@@ -112,18 +123,23 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
                 {
                     // MISSING → copy the whole message (large attachments handled by the hybrid write).
                     _ = await copier.CopyAsync(mid, destKey, folder.Path, destPath, msg, ct);
+                    copied++;
                     continue;
                 }
 
                 var missing = AttachmentMatcher.Missing(msg.Attachments, digest.Attachments);
                 if (missing.Count == 0)
                 {
+                    skipped++;
                     continue; // COMPLETE → skip (no write, no backfill)
                 }
 
                 // INCOMPLETE → backfill ONLY the missing attachments onto the existing message.
                 _ = await reconcilable.BackfillAttachmentsAsync(destPath, digest.DestMessageId, msg, missing, ct);
+                backfilled++;
             }
+
+            LogFolderDone(mid, folderName, index.Count, copied, backfilled, skipped);
         }
 
         var counts = await _ledger.GetCountsAsync(mid, ct);
@@ -134,6 +150,12 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Reconcile not supported on destination {Provider} for migration {Mid}.")]
     private partial void LogUnsupported(string provider, Guid mid);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Reconcile {Mid}: scanning destination folder {Folder}...")]
+    private partial void LogFolderStart(Guid mid, string folder);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Reconcile {Mid}: folder {Folder} done — destScanned={DestScanned} copied={Copied} backfilled={Backfilled} skipped={Skipped}.")]
+    private partial void LogFolderDone(Guid mid, string folder, int destScanned, int copied, int backfilled, int skipped);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Reconcile complete for migration {Mid}.")]
     private partial void LogReconciled(Guid mid);

@@ -53,6 +53,8 @@ public static class ScopeEndpoints
 
         IReadOnlyList<MailboxPair> pairs;
         bool isBatch;
+        DateTimeOffset? since = null;
+        DateTimeOffset? before = null;
 
         if (request.HasFormContentType && request.Form.Files.Count > 0)
         {
@@ -78,6 +80,8 @@ public static class ScopeEndpoints
 
             pairs = scope.Pairs.Select(p => new MailboxPair(p.SourceMailbox, p.DestMailbox)).ToList();
             isBatch = scope.IsBatch;
+            since = scope.Since;
+            before = scope.Before;
         }
 
         // Replace the job's existing mailbox rows with the new scope.
@@ -96,6 +100,8 @@ public static class ScopeEndpoints
         }
 
         job.IsBatch = isBatch;
+        job.Since = since;
+        job.Before = before;
         job.WizardStep = Math.Max(job.WizardStep, 3);
         job.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();

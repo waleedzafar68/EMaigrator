@@ -54,7 +54,36 @@ public static class GraphFolderMapper
             index[new FolderPath(segments).ToString()] = node.Id;
         }
 
+        // Route common source special-folder names onto the mailbox's well-known folders, so e.g. Gmail's
+        // "SENT" or IMAP's "Sent" lands in Exchange's "Sent Items" instead of a stray literal folder.
+        // These aliases OVERWRITE a same-named DisplayName path on purpose: if a prior failed run created a
+        // literal "SENT" folder, the alias must still win so mail routes to the real Sent Items.
+        AddWellKnownAliases(index, wellKnown);
+
         return index;
+    }
+
+    private static void AddWellKnownAliases(Dictionary<string, string> index, GraphFolderWellKnown wellKnown)
+    {
+        void Alias(string? id, params string[] names)
+        {
+            if (string.IsNullOrEmpty(id))
+            {
+                return;
+            }
+
+            foreach (var name in names)
+            {
+                index[name] = id;
+            }
+        }
+
+        // Cover both Gmail's UPPERCASE system labels and IMAP/standard mixed-case names.
+        Alias(wellKnown.InboxId, "INBOX", "Inbox");
+        Alias(wellKnown.SentItemsId, "SENT", "Sent", "Sent Items", "Sent Mail", "[Gmail]/Sent Mail");
+        Alias(wellKnown.DraftsId, "DRAFT", "DRAFTS", "Drafts", "[Gmail]/Drafts");
+        Alias(wellKnown.JunkEmailId, "SPAM", "Junk", "Junk Email", "Junk E-Mail", "[Gmail]/Spam");
+        Alias(wellKnown.DeletedItemsId, "TRASH", "Trash", "Deleted Items", "Bin", "Deleted", "[Gmail]/Trash");
     }
 
     public static string? ResolveFolderId(FolderPath path, IReadOnlyDictionary<string, string> idsByPath)

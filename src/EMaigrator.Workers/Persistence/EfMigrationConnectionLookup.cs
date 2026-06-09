@@ -44,6 +44,6 @@ public sealed class EfMigrationConnectionLookup : IMigrationConnectionLookup
         var dest = JsonSerializer.Deserialize<ConnectionDescriptor>(job.DestConnectionRef)
             ?? throw new InvalidOperationException($"Job {job.Id} dest connection descriptor is invalid JSON.");
 
-        return new MigrationConnections(job.Id, job.TenantId.ToString(), source, dest);
+        return new MigrationConnections(job.Id, job.TenantId.ToString(), source, dest, job.Since, job.Before);
     }
 }

@@ -1,13 +1,12 @@
-using System.Text.Json;
 using EMaigrator.Core.Abstractions;
 
 namespace EMaigrator.Cli.Secrets;
 
 /// <summary>
-/// Single source of truth mapping an AuthMethod to the flat JSON secret blob that the matching
-/// connector expects in its SecretBundle (the worker's ProviderSessionFactory deserializes the
-/// stored blob with JsonSerializer.Deserialize&lt;Dictionary&lt;string,string&gt;&gt;). Keeping this in one
-/// place guarantees connect-test, preflight, and the worker-run path all agree.
+/// Thin CLI-facing alias over the canonical <see cref="EMaigrator.Infrastructure.Secrets.SecretBundleShape"/>
+/// (the single source of truth shared with the API connect-test/preflight and the worker run path). Kept as
+/// a named entry point so existing CLI call-sites/tests are unchanged while the AuthMethod→key mapping lives
+/// in exactly one place.
 /// </summary>
 public static class SecretBundleShape
 {
@@ -16,16 +15,6 @@ public static class SecretBundleShape
     /// is the entire service-account key-file CONTENTS (already a flat JSON object of strings), stored under
     /// the "serviceAccountJson" key the Gmail connector reads.
     /// </summary>
-    public static string ForAuth(AuthMethod auth, string raw)
-    {
-        string key = auth switch
-        {
-            AuthMethod.ImapBasic => "password",
-            AuthMethod.ImapOAuthXoauth2 => "accessToken",
-            AuthMethod.GraphAppOAuth or AuthMethod.GraphDelegatedOAuth => "clientSecret",
-            AuthMethod.GmailServiceAccountDwd => "serviceAccountJson",
-            _ => "password",
-        };
-        return JsonSerializer.Serialize(new Dictionary<string, string> { [key] = raw });
-    }
+    public static string ForAuth(AuthMethod auth, string raw) =>
+        EMaigrator.Infrastructure.Secrets.SecretBundleShape.Wrap(auth, raw);
 }

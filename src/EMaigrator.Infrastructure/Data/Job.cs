@@ -15,6 +15,13 @@ public class Job
     public JobMode Mode { get; set; }
     public int WizardStep { get; set; }
     public bool StoreSubjects { get; set; }
+
+    /// <summary>Optional scope window (inclusive lower bound) applied to source reads — migrate AND reconcile.</summary>
+    public DateTimeOffset? Since { get; set; }
+
+    /// <summary>Optional scope window (exclusive upper bound) applied to source reads — migrate AND reconcile.</summary>
+    public DateTimeOffset? Before { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
 }

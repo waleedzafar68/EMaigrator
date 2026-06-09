@@ -5,21 +5,27 @@ import { putConnection, testConnection } from "../api/migrations";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { imapDefaults, workmailHost, WORKMAIL_REGIONS, type WorkmailRegion } from "./connectPresets";
 
+const inputClass =
+  "mt-1 block h-[var(--control-h)] w-full rounded-[6px] border border-border-strong px-2";
+
 function OAuthGuide({ provider }: { provider: ProviderId }) {
-  const [skip, setSkip] = useState(false);
+  const portal = provider === "graph" ? "Azure portal" : "Google Cloud console";
   return (
-    <div className="space-y-3">
-      <button type="button" className="text-sm text-accent" onClick={() => setSkip((s) => !s)}>
-        {skip ? "Show me the setup guide" : "I already have an app — just let me paste credentials"}
-      </button>
-      {!skip ? (
-        <ol className="list-decimal space-y-1 pl-5 text-sm text-fg-muted">
-          <li>Open the {provider === "graph" ? "Azure portal" : "Google Cloud console"} and create an app registration.</li>
-          <li>Grant the least-privilege mail permission and admin consent.</li>
-          <li>Copy the values below back into EMaigrator.</li>
-        </ol>
-      ) : null}
-    </div>
+    <ol className="list-decimal space-y-1 pl-5 text-sm text-fg-muted">
+      {provider === "graph" ? (
+        <>
+          <li>In the {portal}, register an app and add the <span className="mono">Mail.ReadWrite</span> application permission, then grant admin consent.</li>
+          <li>Create a client secret and copy the Directory (tenant) ID, Application (client) ID, and secret value.</li>
+          <li>Paste them below — <span className="mono">Account email</span> is the target Exchange mailbox.</li>
+        </>
+      ) : (
+        <>
+          <li>In the {portal}, create a service account and enable domain-wide delegation.</li>
+          <li>In the Workspace Admin console, authorize the SA client ID for scope <span className="mono">https://mail.google.com/</span> only.</li>
+          <li>Paste the full service-account JSON key below — <span className="mono">Account email</span> is the mailbox to read.</li>
+        </>
+      )}
+    </ol>
   );
 }
 
@@ -33,6 +39,8 @@ export function StepConnect() {
   const [advanced, setAdvanced] = useState(false);
   const [host, setHost] = useState("");
   const [username, setUsername] = useState("");
+  const [tenantId, setTenantId] = useState("");
+  const [clientId, setClientId] = useState("");
   const [secret, setSecret] = useState("");
   const [result, setResult] = useState<ConnectionTestResult | null>(null);
   const [testing, setTesting] = useState(false);
@@ -44,15 +52,23 @@ export function StepConnect() {
 
   const auth: AuthMethod = provider === "imap" ? "ImapBasic" : provider === "graph" ? "GraphAppOAuth" : "GmailServiceAccountDwd";
 
+  function settingsFor(): Record<string, string> {
+    if (provider === "imap") {
+      return { host: effectiveHost, port: String(imapDefaults.port), region, accountEmail: username };
+    }
+    if (provider === "graph") {
+      return { tenantId, clientId, accountEmail: username };
+    }
+    return { accountEmail: username };
+  }
+
   async function onTest() {
     setTesting(true);
     setResult(null);
     try {
-      const settings: Record<string, string> =
-        provider === "imap"
-          ? { host: effectiveHost, port: String(imapDefaults.port), region, accountEmail: username }
-          : { accountEmail: username };
-      await putConnection(migration.id, side, { auth, settings, secret });
+      // The API shapes `secret` into the connector's bundle key per auth method, so we send the raw
+      // credential: the IMAP password, the Graph client-secret value, or the full Gmail SA-JSON contents.
+      await putConnection(migration.id, side, { auth, settings: settingsFor(), secret });
       setResult(await testConnection(migration.id, side));
     } catch (e) {
       setResult({
@@ -70,6 +86,25 @@ export function StepConnect() {
   function onContinue() {
     navigate(side === "from" ? `/migrations/${migration.id}/connect/to` : `/migrations/${migration.id}/scope`);
   }
+
+  const failure =
+    provider === "graph"
+      ? {
+          message: "We couldn't connect. Check the tenant/client IDs and client secret, and that admin consent was granted for Mail.ReadWrite.",
+          helpLabel: "Graph app setup",
+          helpHref: "/help/graph-app",
+        }
+      : provider === "gmail"
+        ? {
+            message: "We couldn't connect. Check the service-account JSON and that domain-wide delegation is authorized for https://mail.google.com/.",
+            helpLabel: "Gmail delegation setup",
+            helpHref: "/help/gmail-delegation",
+          }
+        : {
+            message: "We couldn't connect. WorkMail needs an app password, not your normal password.",
+            helpLabel: "How to create one",
+            helpHref: "/help/workmail-app-password",
+          };
 
   return (
     <div className="space-y-5">
@@ -93,21 +128,43 @@ export function StepConnect() {
           </button>
           {advanced ? (
             <label className="block text-sm">Server host
-              <input value={host} onChange={(e) => setHost(e.target.value)}
-                className="mt-1 block h-[var(--control-h)] w-full rounded-[6px] border border-border-strong px-2" />
+              <input value={host} onChange={(e) => setHost(e.target.value)} className={inputClass} />
             </label>
           ) : null}
           <label className="block text-sm">Username
-            <input aria-label="Username" value={username} onChange={(e) => setUsername(e.target.value)}
-              className="mt-1 block h-[var(--control-h)] w-full rounded-[6px] border border-border-strong px-2" />
+            <input aria-label="Username" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} />
           </label>
           <label className="block text-sm">Password
-            <input aria-label="Password" type="password" value={secret} onChange={(e) => setSecret(e.target.value)}
-              className="mt-1 block h-[var(--control-h)] w-full rounded-[6px] border border-border-strong px-2" />
+            <input aria-label="Password" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} className={inputClass} />
+          </label>
+        </div>
+      ) : provider === "graph" ? (
+        <div className="space-y-3">
+          <OAuthGuide provider="graph" />
+          <label className="block text-sm">Directory (tenant) ID
+            <input aria-label="Tenant ID" value={tenantId} onChange={(e) => setTenantId(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block text-sm">Application (client) ID
+            <input aria-label="Client ID" value={clientId} onChange={(e) => setClientId(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block text-sm">Account email (target mailbox)
+            <input aria-label="Account email" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block text-sm">Client secret
+            <input aria-label="Client secret" type="password" value={secret} onChange={(e) => setSecret(e.target.value)} className={inputClass} />
           </label>
         </div>
       ) : (
-        <OAuthGuide provider={provider} />
+        <div className="space-y-3">
+          <OAuthGuide provider="gmail" />
+          <label className="block text-sm">Account email (mailbox to read)
+            <input aria-label="Account email" value={username} onChange={(e) => setUsername(e.target.value)} className={inputClass} />
+          </label>
+          <label className="block text-sm">Service account JSON
+            <textarea aria-label="Service account JSON" value={secret} onChange={(e) => setSecret(e.target.value)} rows={6}
+              className="mono mt-1 block w-full rounded-[6px] border border-border-strong p-2 text-xs" />
+          </label>
+        </div>
       )}
 
       <p className="text-sm text-fg-muted">🔒 We read mail to migrate it. We never store contents.</p>
@@ -124,8 +181,8 @@ export function StepConnect() {
       ) : null}
       {result && !result.ok ? (
         <ErrorAlert
-          message="We couldn't connect. WorkMail needs an app password, not your normal password."
-          helpLabel="How to create one" helpHref="/help/workmail-app-password"
+          message={failure.message}
+          helpLabel={failure.helpLabel} helpHref={failure.helpHref}
           technicalDetail={`${result.errorCode ?? ""} ${result.rawDetail ?? ""}`.trim()}
         />
       ) : null}

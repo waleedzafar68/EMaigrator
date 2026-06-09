@@ -11,6 +11,7 @@ using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Diagnostics;
 using EMaigrator.Core.Model;
 using EMaigrator.Infrastructure.Data;
+using EMaigrator.Infrastructure.Secrets;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMaigrator.Api.Services;
@@ -84,18 +85,23 @@ public sealed class ConnectionService : IConnectionService
         var job = await _db.Jobs.FirstOrDefaultAsync(j => j.Id == jobId, ct)
             ?? throw new JobNotFoundException();
 
+        var auth = Enum.Parse<AuthMethod>(request.Auth, ignoreCase: true);
+
         string? secretRef = null;
         if (!string.IsNullOrEmpty(request.Secret))
         {
-            secretRef = await _secrets.StoreAsync(
-                _tenant.TenantId.ToString(), request.Secret, ct);
+            // Store the secret as connector-shaped JSON ({"clientSecret":…}/{"serviceAccountJson":…}/
+            // {"password":…}) via the shared SecretBundleShape, so connect-test, preflight, and the worker
+            // run path all resolve it under the exact key the connector reads (CONTRACTS §4).
+            var shaped = SecretBundleShape.Wrap(auth, request.Secret);
+            secretRef = await _secrets.StoreAsync(_tenant.TenantId.ToString(), shaped, ct);
         }
 
         var providerValue = side == "from" ? job.SourceProvider.Value : job.DestProvider.Value;
         var descriptor = new ConnectionDescriptor
         {
             Provider = new ProviderId(providerValue),
-            Auth = Enum.Parse<AuthMethod>(request.Auth, ignoreCase: true),
+            Auth = auth,
             Settings = request.Settings,
             SecretRef = secretRef,
         };
@@ -140,13 +146,13 @@ public sealed class ConnectionService : IConnectionService
                 return new ConnectionTestResult(false, 0, 0, "PLUGIN_NOT_FOUND", "Provider plugin not available.");
             }
 
-            var secretValues = new Dictionary<string, string>(StringComparer.Ordinal);
-            if (!string.IsNullOrEmpty(descriptor.SecretRef))
-            {
-                secretValues["secret"] = await _secrets.RetrieveAsync(descriptor.SecretRef, ct);
-            }
-
-            var bundle = new SecretBundle(secretValues);
+            // Resolve the stored connector-shaped blob the SAME way the worker run path does
+            // (SecretBundleShape.Unwrap), so a connect-test exercises the real credential the run will use —
+            // not a {"secret":…}-keyed bundle no connector reads.
+            var bundle = new SecretBundle(
+                string.IsNullOrEmpty(descriptor.SecretRef)
+                    ? new Dictionary<string, string>(StringComparer.Ordinal)
+                    : SecretBundleShape.Unwrap(await _secrets.RetrieveAsync(descriptor.SecretRef, ct)));
 
             if (side == "from")
             {

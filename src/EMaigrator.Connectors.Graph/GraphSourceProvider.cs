@@ -104,24 +104,17 @@ public sealed class GraphSourceProvider : ISourceProvider
         }
     }
 
-    private async Task<List<GraphMailFolderNode>> FetchFolderNodesAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<GraphMailFolderNode>> FetchFolderNodesAsync(CancellationToken ct)
     {
-        var nodes = new List<GraphMailFolderNode>();
+        // Collect the COMPLETE folder set first; root-vs-orphan classification needs every node's id,
+        // because live Graph reports a top-level folder's parent as the root's real id (not "msgfolderroot").
+        var raw = new List<MailFolder>();
         var page = await _client.Users[_accountEmail].MailFolders
             .GetAsync(rc => rc.QueryParameters.Top = 100, ct).ConfigureAwait(false);
 
         while (page is not null)
         {
-            foreach (var f in page.Value ?? [])
-            {
-                // The mailbox root parent id is "msgfolderroot"; null it out so top-level folders
-                // are treated as canonical roots by GraphFolderMapper (rather than skipped as orphans).
-                nodes.Add(new GraphMailFolderNode(
-                    f.Id!,
-                    f.DisplayName ?? "(unnamed)",
-                    string.Equals(f.ParentFolderId, "msgfolderroot", StringComparison.Ordinal) ? null : f.ParentFolderId,
-                    f.TotalItemCount ?? 0));
-            }
+            raw.AddRange(page.Value ?? []);
 
             if (string.IsNullOrEmpty(page.OdataNextLink))
             {
@@ -132,7 +125,7 @@ public sealed class GraphSourceProvider : ISourceProvider
                 .WithUrl(page.OdataNextLink).GetAsync(cancellationToken: ct).ConfigureAwait(false);
         }
 
-        return nodes;
+        return GraphMailFolderNode.BuildFromGraph(raw);
     }
 
     private static GraphFolderWellKnown ResolveWellKnown(IReadOnlyList<GraphMailFolderNode> nodes)

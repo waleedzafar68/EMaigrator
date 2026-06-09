@@ -30,6 +30,9 @@ public class GraphDestinationProviderTests : IDisposable
     private const string CreatedFolderJson =
         """{ "id": "new-folder-id", "displayName": "Projects", "parentFolderId": "inbox-id", "totalItemCount": 0 }""";
 
+    private const string CreatedDraftJson =
+        """{ "id": "draft-id", "internetMessageId": "<m1@contoso.com>", "subject": "First" }""";
+
     private const string CreatedMessageJson =
         """{ "id": "imported-msg-id", "internetMessageId": "<m1@contoso.com>", "subject": "First" }""";
 
@@ -43,6 +46,21 @@ public class GraphDestinationProviderTests : IDisposable
         _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/mailFolders").UsingGet())
                .RespondWith(Response.Create().WithStatusCode(200)
                    .WithHeader("Content-Type", "application/json").WithBody(FoldersListJson));
+
+    // The live MIME-import flow: top-level create (draft "draft-id") → move into the folder (post-move id
+    // "imported-msg-id") → isRead PATCH. The folder-scoped /mailFolders/{id}/messages endpoint rejects MIME.
+    private void StubWriteFlow()
+    {
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages").UsingPost())
+               .RespondWith(Response.Create().WithStatusCode(201)
+                   .WithHeader("Content-Type", "application/json").WithBody(CreatedDraftJson));
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages/draft-id/move").UsingPost())
+               .RespondWith(Response.Create().WithStatusCode(201)
+                   .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+        _server.Given(Request.Create().WithPath("/v1.0/users/user@contoso.com/messages/imported-msg-id").UsingMethod("PATCH"))
+               .RespondWith(Response.Create().WithStatusCode(200)
+                   .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+    }
 
     private static CanonicalMessage Message() => new()
     {
@@ -73,32 +91,71 @@ public class GraphDestinationProviderTests : IDisposable
     public async Task WriteMessage_imports_mime_and_returns_dest_id()
     {
         StubFolders();
-        _server.Given(Request.Create()
-                   .WithPath("/v1.0/users/user@contoso.com/mailFolders/projects-id/messages").UsingPost())
-               .RespondWith(Response.Create().WithStatusCode(201)
-                   .WithHeader("Content-Type", "application/json").WithBody(CreatedMessageJson));
+        StubWriteFlow();
 
         var result = await NewProvider().WriteMessageAsync(
             FolderPath.Parse("Inbox/Projects"), Message(), CancellationToken.None);
 
         result.Written.Should().BeTrue();
+        result.DestMessageId.Should().Be("imported-msg-id"); // the post-move id, not the draft id
+
+        // MIME is imported at the TOP-LEVEL /messages endpoint as text/plain base64 that decodes back to
+        // the exact source MIME (the folder-scoped endpoint rejects MIME — see GraphDestinationProvider).
+        var import = _server.LogEntries.Single(e =>
+            e.RequestMessage?.Method == "POST" &&
+            (e.RequestMessage.Path?.EndsWith("/user@contoso.com/messages", StringComparison.Ordinal) ?? false));
+        import.RequestMessage!.Headers!["Content-Type"].First().Should().Contain("text/plain");
+        Encoding.ASCII.GetString(Convert.FromBase64String(import.RequestMessage.Body!))
+            .Should().Be("Message-ID: <m1@contoso.com>\r\n\r\nbody");
+
+        // The imported draft is then MOVED into the resolved destination folder (projects-id).
+        var move = _server.LogEntries.Single(e =>
+            e.RequestMessage?.Method == "POST" &&
+            (e.RequestMessage.Path?.EndsWith("/messages/draft-id/move", StringComparison.Ordinal) ?? false));
+        move.RequestMessage!.Body.Should().Contain("projects-id");
+    }
+
+    [Fact]
+    public async Task WriteMessage_routes_source_SENT_to_wellknown_Sent_Items_without_creating_a_folder()
+    {
+        StubFolders(); // includes "Sent Items" → sent-id
+        StubWriteFlow();
+
+        // Gmail emits the uppercase system label "SENT"; it must land in Exchange's well-known Sent Items,
+        // not a stray literal "SENT" folder. The imported draft is moved there (destinationId = sent-id).
+        var result = await NewProvider().WriteMessageAsync(
+            FolderPath.Parse("SENT"), Message(), CancellationToken.None);
+
+        result.Written.Should().BeTrue();
         result.DestMessageId.Should().Be("imported-msg-id");
 
-        var post = _server.LogEntries.Single(e => e.RequestMessage?.Method == "POST");
-        post.RequestMessage!.Headers!["Content-Type"].First().Should().Contain("text/plain");
+        var move = _server.LogEntries.Single(e =>
+            e.RequestMessage?.Method == "POST" &&
+            (e.RequestMessage.Path?.EndsWith("/messages/draft-id/move", StringComparison.Ordinal) ?? false));
+        move.RequestMessage!.Body.Should().Contain("sent-id");
 
-        // The posted body is base64 that decodes back to the source MIME (no body persisted anywhere).
-        var postedBase64 = post.RequestMessage.Body!;
-        var decoded = Encoding.ASCII.GetString(Convert.FromBase64String(postedBase64));
-        decoded.Should().Be("Message-ID: <m1@contoso.com>\r\n\r\nbody");
+        _server.LogEntries.Should().NotContain(e => (e.RequestMessage!.Path ?? "").Contains("childFolders", StringComparison.Ordinal),
+            "a well-known special folder must never be created");
+    }
+
+    [Fact]
+    public async Task EnsureFolder_does_not_create_a_wellknown_special_folder()
+    {
+        StubFolders();
+
+        await NewProvider().EnsureFolderAsync(FolderPath.Parse("SENT"), CancellationToken.None);
+
+        _server.LogEntries.Where(e => e.RequestMessage != null && e.RequestMessage.Method == "POST")
+            .Should().BeEmpty("SENT maps to the existing Sent Items — nothing should be created");
     }
 
     [Fact]
     public async Task WriteMessage_throttled_returns_normalized_error_without_tenant()
     {
         StubFolders();
+        // The import (top-level POST /messages) is the first write call; a 429 there fails the whole write.
         _server.Given(Request.Create()
-                   .WithPath("/v1.0/users/user@contoso.com/mailFolders/projects-id/messages").UsingPost())
+                   .WithPath("/v1.0/users/user@contoso.com/messages").UsingPost())
                .RespondWith(Response.Create().WithStatusCode(429)
                    .WithHeader("Content-Type", "application/json").WithHeader("Retry-After", "12")
                    .WithBody("{\"error\":{\"code\":\"errorThrottledRequest\",\"message\":\"throttled tenant 11111111\"}}"));

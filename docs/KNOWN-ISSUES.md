@@ -3,6 +3,28 @@
 Tracked, non-blocking defects with a known data-safety bound and a fix direction. Update or remove an
 entry when it is fixed.
 
+## RESOLVED 2026-06-09 — Graph MIME import + custom-folder resolution (`EMaigrator.Connectors.Graph`)
+
+Two live-only defects (both shipped green because WireMock validates neither the body nor the live
+`parentFolderId` shape) were root-caused against a live tenant and fixed; verified end-to-end by the gated
+`GraphDestinationLiveTests`. Kept here for the non-obvious root causes:
+
+1. **`UnableToDeserializePostBody` on every MIME write.** The folder-scoped endpoint
+   `POST .../mailFolders/{id}/messages` **silently rejects** a `text/plain` base64-MIME body (it only
+   deserializes a JSON `message` resource there — Graph's *JSON* error, distinct from the MIME path's
+   `ErrorMimeContentInvalidBase64String`), despite the docs listing it as a MIME target. A raw `HttpClient`
+   POST bypassing the SDK failed identically, exonerating Kiota and the MIME bytes. **Fix:** import MIME at
+   the **top-level** `POST .../messages` (which Graph accepts → creates a draft in Drafts), then `move` it
+   into the destination folder. Graph marks every MIME-imported message `isDraft=true` with no supported way
+   to clear it after creation (confirmed live + by expert consensus), so we at least preserve source
+   read/unread via the mutable `isRead` (a draft-flag mitigation via FTS export/reimport is a future option).
+
+2. **Custom top-level folders never resolved.** Live Graph returns a top-level folder's `parentFolderId` as
+   the mailbox root's **real id** (the literal `"msgfolderroot"` is only a URL alias) and never returns the
+   root itself in the folder list, so `GraphFolderMapper` treated every custom folder as an orphan and
+   dropped it. Well-known folders survived only via name aliases. **Fix:** `GraphMailFolderNode.BuildFromGraph`
+   treats a parent that is absent from the complete fetched set as the root.
+
 ## Resume-completion race (`EMaigrator.Workers`)
 
 **Severity:** low — misleading status only. **No data loss, no duplication.**

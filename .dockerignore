@@ -1,0 +1,11 @@
+# Build-context excludes — MUST live at the repo root (the compose build context is `..`), otherwise
+# Docker ships the whole tree (bin/ alone is ~2.6 GB) and every image build crawls.
+# NOTE: do NOT exclude web/ or docs/ here — the web image's build context is also the repo root.
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/TestResults/
+.git/
+deploy/.env
+**/*.user

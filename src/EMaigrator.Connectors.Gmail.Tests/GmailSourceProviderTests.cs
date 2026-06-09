@@ -15,6 +15,12 @@ public class GmailSourceProviderTests
           .RespondWith(Response.Create().WithStatusCode(200)
               .WithHeader("Content-Type", "application/json").WithBody(GmailWireMockFixture.Fixture("labels.list.json")));
 
+    private static void StubProfile(GmailWireMockFixture fx, long messagesTotal) =>
+        fx.Server.Given(Request.Create().WithPath("/gmail/v1/users/me/profile").UsingGet())
+          .RespondWith(Response.Create().WithStatusCode(200)
+              .WithHeader("Content-Type", "application/json")
+              .WithBody($"{{\"emailAddress\":\"me@example.com\",\"messagesTotal\":{messagesTotal},\"threadsTotal\":10,\"historyId\":\"1\"}}"));
+
     private static void StubMessagesList(GmailWireMockFixture fx) =>
         fx.Server.Given(Request.Create().WithPath("/gmail/v1/users/me/messages").UsingGet())
           .RespondWith(Response.Create().WithStatusCode(200)
@@ -39,12 +45,17 @@ public class GmailSourceProviderTests
     {
         using var fx = new GmailWireMockFixture();
         StubLabels(fx);
+        StubProfile(fx, 4242);
         var sut = new GmailSourceProvider(fx.CreateService(), "me");
 
         var result = await sut.TestConnectionAsync(CancellationToken.None);
 
         result.Ok.Should().BeTrue();
         result.FolderCount.Should().Be(7); // mappable labels (CHAT + UNREAD excluded): INBOX,SENT,STARRED,CATEGORY_PROMOTIONS,Work,Work/Clients,Work/Clients/Acme
+        // The message count comes from users.getProfile.messagesTotal — the true mailbox total. It must
+        // NOT sum per-label counts: labels.list omits messagesTotal (→ 0 live), and a sum would double-count
+        // messages carrying multiple labels (INBOX + a user label).
+        result.MessageCount.Should().Be(4242);
     }
 
     [Fact]

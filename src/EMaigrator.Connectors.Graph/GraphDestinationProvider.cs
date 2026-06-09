@@ -6,6 +6,7 @@ using EMaigrator.Core.Model;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
 using Microsoft.Graph.Models.ODataErrors;
+using Microsoft.Graph.Users.Item.Messages.Item.Move;
 using Microsoft.Kiota.Abstractions;
 using Microsoft.Kiota.Abstractions.Serialization;
 using MimeKit;
@@ -124,6 +125,7 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
             if (base64Mime.Length <= MimeImportMaxBase64Bytes)
             {
                 var created = await ImportMimeAsync(folderId, base64Mime, ct).ConfigureAwait(false);
+                await ApplyReadStateAsync(created?.Id, message.Flags, ct).ConfigureAwait(false);
                 return new WriteResult(Written: true, DestMessageId: created?.Id);
             }
 
@@ -137,6 +139,7 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
                 // Stripping would break the signature/envelope → attempt the whole import; if Graph
                 // rejects the oversized body the catch below returns a normalized WriteResult(false).
                 var created = await ImportMimeAsync(folderId, base64Mime, ct).ConfigureAwait(false);
+                await ApplyReadStateAsync(created?.Id, message.Flags, ct).ConfigureAwait(false);
                 return new WriteResult(Written: true, DestMessageId: created?.Id);
             }
 
@@ -154,6 +157,7 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
                     .ConfigureAwait(false);
             }
 
+            await ApplyReadStateAsync(destMessageId, message.Flags, ct).ConfigureAwait(false);
             return new WriteResult(Written: true, DestMessageId: destMessageId);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -163,12 +167,19 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
         }
     }
 
-    /// <summary>POSTs base64 RFC822 as text/plain to .../messages (MIME import) and returns the created message.</summary>
+    /// <summary>
+    /// Imports base64 RFC822 (text/plain) and returns the message in the destination folder.
+    /// Graph's FOLDER-scoped endpoint (.../mailFolders/{id}/messages) silently rejects a text/plain MIME
+    /// body with 400 "UnableToDeserializePostBody" — there it only deserializes a JSON message resource,
+    /// despite the docs listing it as a MIME target. The TOP-LEVEL endpoint (.../messages) DOES accept
+    /// MIME: it creates the message as a draft in Drafts, which we then move into the destination folder
+    /// (move re-keys the message id). Proven live end-to-end in GraphDestinationLiveTests.
+    /// </summary>
     private async Task<Message?> ImportMimeAsync(string folderId, string base64Mime, CancellationToken ct)
     {
-        // Start from the typed builder so the URL template + base URL are correct, then override the
-        // body with base64 RFC822 as text/plain (the typed PostAsync only sends JSON).
-        var builder = _client.Users[_accountEmail].MailFolders[folderId].Messages;
+        // Start from the typed top-level builder so the URL template + base URL are correct, then override
+        // the body with base64 RFC822 as text/plain (the typed PostAsync only sends JSON).
+        var builder = _client.Users[_accountEmail].Messages;
         var requestInfo = builder.ToPostRequestInformation(new Message());
         requestInfo.Headers.Clear();
         requestInfo.SetStreamContent(
@@ -180,8 +191,36 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
             ["5XX"] = ODataError.CreateFromDiscriminatorValue,
         };
 
-        return await _client.RequestAdapter
+        var draft = await _client.RequestAdapter
             .SendAsync(requestInfo, Message.CreateFromDiscriminatorValue, errorMapping, ct)
+            .ConfigureAwait(false);
+        if (draft?.Id is not { } draftId)
+        {
+            return draft;
+        }
+
+        // Move the imported draft from Drafts into the real destination folder. The move returns the
+        // message with its new (post-move) id, which is what callers persist and address attachments by.
+        var moved = await _client.Users[_accountEmail].Messages[draftId].Move
+            .PostAsync(new MovePostRequestBody { DestinationId = folderId }, cancellationToken: ct)
+            .ConfigureAwait(false);
+        return moved ?? draft;
+    }
+
+    /// <summary>
+    /// Preserves the source read/unread state on the imported message. Graph marks every MIME-imported
+    /// message <c>isDraft=true</c> and offers no supported way to clear that flag after creation, but the
+    /// first-class <c>isRead</c> property IS mutable — so we at least carry read state across faithfully.
+    /// </summary>
+    private async Task ApplyReadStateAsync(string? messageId, MessageFlags flags, CancellationToken ct)
+    {
+        if (messageId is null)
+        {
+            return;
+        }
+
+        await _client.Users[_accountEmail].Messages[messageId]
+            .PatchAsync(new Message { IsRead = flags.HasFlag(MessageFlags.Seen) }, cancellationToken: ct)
             .ConfigureAwait(false);
     }
 
@@ -217,7 +256,8 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
     /// fetched only for messages that have attachments. Never reads bodies. (IReconcilableDestination)
     /// </summary>
     public async IAsyncEnumerable<DestMessageDigest> ScanFolderAsync(
-        FolderPath folder, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+        FolderPath folder, DateTimeOffset? since, DateTimeOffset? before,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(folder);
 
@@ -227,12 +267,19 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
             yield break; // missing/empty destination folder → nothing to reconcile against
         }
 
+        // A date-scoped reconcile restricts the dest scan to the same received-date window, so a small
+        // window reads only the relevant slice instead of the whole (possibly huge) folder.
+        var filter = BuildReceivedFilter(since, before);
         var page = await _client.Users[_accountEmail].MailFolders[folderId].Messages
             .GetAsync(
                 rc =>
                 {
                     rc.QueryParameters.Select = ["internetMessageId", "hasAttachments"];
                     rc.QueryParameters.Top = 100;
+                    if (filter is not null)
+                    {
+                        rc.QueryParameters.Filter = filter;
+                    }
                 },
                 ct)
             .ConfigureAwait(false);
@@ -326,9 +373,11 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
 
     private async Task<IReadOnlyList<CanonicalAttachmentInfo>> FetchAttachmentMetaAsync(string messageId, CancellationToken ct)
     {
+        // Select only properties of the base microsoft.graph.attachment type that we actually read.
+        // 'contentId' lives on fileAttachment, not the base type — selecting it 400s the whole scan.
         var page = await _client.Users[_accountEmail].Messages[messageId].Attachments
             .GetAsync(
-                rc => rc.QueryParameters.Select = ["name", "size", "contentType", "contentId", "isInline"],
+                rc => rc.QueryParameters.Select = ["name", "size", "contentType"],
                 ct)
             .ConfigureAwait(false);
 
@@ -345,12 +394,36 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
     private async Task<string> CreateChildFolderAsync(string? parentId, string displayName, CancellationToken ct)
     {
         var body = new MailFolder { DisplayName = displayName };
-        var created = parentId is null
+        try
+        {
+            var created = parentId is null
+                ? await _client.Users[_accountEmail].MailFolders
+                    .PostAsync(body, cancellationToken: ct).ConfigureAwait(false)
+                : await _client.Users[_accountEmail].MailFolders[parentId].ChildFolders
+                    .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
+            return created!.Id!;
+        }
+        catch (ODataError ex) when (ex.ResponseStatusCode == 409
+            || string.Equals(ex.Error?.Code, "ErrorFolderExists", StringComparison.OrdinalIgnoreCase))
+        {
+            // Idempotent: the folder already exists (e.g. a prior partial run, or a concurrent create).
+            // Re-resolve the existing child by name rather than faulting the whole job.
+            return await FindChildByNameAsync(parentId, displayName, ct).ConfigureAwait(false)
+                ?? throw new GraphConfigurationException(
+                    $"Folder '{displayName}' reported as already existing but could not be re-resolved.");
+        }
+    }
+
+    private async Task<string?> FindChildByNameAsync(string? parentId, string displayName, CancellationToken ct)
+    {
+        var page = parentId is null
             ? await _client.Users[_accountEmail].MailFolders
-                .PostAsync(body, cancellationToken: ct).ConfigureAwait(false)
+                .GetAsync(rc => rc.QueryParameters.Top = 100, ct).ConfigureAwait(false)
             : await _client.Users[_accountEmail].MailFolders[parentId].ChildFolders
-                .PostAsync(body, cancellationToken: ct).ConfigureAwait(false);
-        return created!.Id!;
+                .GetAsync(rc => rc.QueryParameters.Top = 100, ct).ConfigureAwait(false);
+
+        return page?.Value?
+            .FirstOrDefault(f => string.Equals(f.DisplayName, displayName, StringComparison.OrdinalIgnoreCase))?.Id;
     }
 
     private async Task<string?> ResolveExistingFolderIdAsync(FolderPath folder, CancellationToken ct)
@@ -361,24 +434,17 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
         return GraphFolderMapper.ResolveFolderId(folder, idsByPath);
     }
 
-    private async Task<List<GraphMailFolderNode>> FetchFolderNodesAsync(CancellationToken ct)
+    private async Task<IReadOnlyList<GraphMailFolderNode>> FetchFolderNodesAsync(CancellationToken ct)
     {
-        var nodes = new List<GraphMailFolderNode>();
+        // Collect the COMPLETE folder set first; root-vs-orphan classification needs every node's id,
+        // because live Graph reports a top-level folder's parent as the root's real id (not "msgfolderroot").
+        var raw = new List<MailFolder>();
         var page = await _client.Users[_accountEmail].MailFolders
             .GetAsync(rc => rc.QueryParameters.Top = 100, ct).ConfigureAwait(false);
 
         while (page is not null)
         {
-            foreach (var f in page.Value ?? [])
-            {
-                // The mailbox root parent id is "msgfolderroot"; null it out so top-level folders
-                // are treated as canonical roots by GraphFolderMapper (rather than skipped as orphans).
-                nodes.Add(new GraphMailFolderNode(
-                    f.Id!,
-                    f.DisplayName ?? "(unnamed)",
-                    string.Equals(f.ParentFolderId, "msgfolderroot", StringComparison.Ordinal) ? null : f.ParentFolderId,
-                    f.TotalItemCount ?? 0));
-            }
+            raw.AddRange(page.Value ?? []);
 
             if (string.IsNullOrEmpty(page.OdataNextLink))
             {
@@ -389,7 +455,26 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
                 .WithUrl(page.OdataNextLink).GetAsync(cancellationToken: ct).ConfigureAwait(false);
         }
 
-        return nodes;
+        return GraphMailFolderNode.BuildFromGraph(raw);
+    }
+
+    // Graph OData $filter for the received-date window (UTC, second precision). Null when unscoped.
+    private static string? BuildReceivedFilter(DateTimeOffset? since, DateTimeOffset? before)
+    {
+        var parts = new List<string>(2);
+        if (since is { } s)
+        {
+            parts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"receivedDateTime ge {s.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ}"));
+        }
+
+        if (before is { } b)
+        {
+            parts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"receivedDateTime lt {b.UtcDateTime:yyyy-MM-ddTHH:mm:ssZ}"));
+        }
+
+        return parts.Count == 0 ? null : string.Join(" and ", parts);
     }
 
     private static GraphFolderWellKnown ResolveWellKnown(IReadOnlyList<GraphMailFolderNode> nodes)
@@ -401,7 +486,8 @@ public sealed class GraphDestinationProvider : IDestinationProvider, IReconcilab
             InboxId: ByName("Inbox"),
             DraftsId: ByName("Drafts"),
             SentItemsId: ByName("Sent Items"),
-            DeletedItemsId: ByName("Deleted Items"));
+            DeletedItemsId: ByName("Deleted Items"),
+            JunkEmailId: ByName("Junk Email"));
     }
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;

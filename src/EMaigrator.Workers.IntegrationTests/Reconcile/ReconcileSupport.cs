@@ -152,7 +152,7 @@ public sealed class StatefulReconcileDestination : IDestinationProvider, IReconc
     }
 
     public async IAsyncEnumerable<DestMessageDigest> ScanFolderAsync(
-        FolderPath folder, [EnumeratorCancellation] CancellationToken ct)
+        FolderPath folder, DateTimeOffset? since, DateTimeOffset? before, [EnumeratorCancellation] CancellationToken ct)
     {
         List<DestMessageDigest> snapshot;
         lock (_gate)

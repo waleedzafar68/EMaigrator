@@ -41,8 +41,11 @@ public sealed class GmailSourceProvider : ISourceProvider
         try
         {
             var labels = await ListMappableLabelsAsync(ct).ConfigureAwait(false);
-            long messageCount = labels.Sum(l => (long)(l.MessagesTotal ?? 0));
-            return new ConnectionTestResult(true, labels.Count, messageCount);
+            // The mailbox total comes from users.getProfile, NOT a sum of per-label MessagesTotal:
+            // labels.list omits MessagesTotal (only labels.get returns it), and summing labels would
+            // double-count messages that carry multiple labels (e.g. INBOX + a user label).
+            var profile = await _service.Users.GetProfile(_userId).ExecuteAsync(ct).ConfigureAwait(false);
+            return new ConnectionTestResult(true, labels.Count, profile.MessagesTotal ?? 0);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

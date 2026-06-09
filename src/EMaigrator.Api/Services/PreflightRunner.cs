@@ -9,6 +9,7 @@ using EMaigrator.Api.Realtime;
 using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Preflight;
 using EMaigrator.Infrastructure.Data;
+using EMaigrator.Infrastructure.Secrets;
 using Microsoft.EntityFrameworkCore;
 
 namespace EMaigrator.Api.Services;
@@ -113,12 +114,13 @@ public sealed class PreflightRunner : IPreflightRunner
 
     private async Task<SecretBundle> BundleAsync(ConnectionDescriptor descriptor, CancellationToken ct)
     {
-        var values = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (!string.IsNullOrEmpty(descriptor.SecretRef))
+        // Resolve the stored connector-shaped blob exactly as the worker run path does, so preflight
+        // analyzes against the real credential under the key the connector reads (CONTRACTS §4).
+        if (string.IsNullOrEmpty(descriptor.SecretRef))
         {
-            values["secret"] = await _secrets.RetrieveAsync(descriptor.SecretRef, ct);
+            return new SecretBundle(new Dictionary<string, string>(StringComparer.Ordinal));
         }
 
-        return new SecretBundle(values);
+        return new SecretBundle(SecretBundleShape.Unwrap(await _secrets.RetrieveAsync(descriptor.SecretRef, ct)));
     }
 }

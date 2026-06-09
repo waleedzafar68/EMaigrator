@@ -57,7 +57,7 @@ public class GraphScanFolderTests : IDisposable
                    .WithHeader("Content-Type", "application/json").WithBody(Msg1AttachmentsJson));
 
         var digests = new List<DestMessageDigest>();
-        await foreach (var d in NewProvider().ScanFolderAsync(FolderPath.Parse("Inbox/Projects"), CancellationToken.None))
+        await foreach (var d in NewProvider().ScanFolderAsync(FolderPath.Parse("Inbox/Projects"), null, null, CancellationToken.None))
         {
             digests.Add(d);
         }
@@ -77,12 +77,42 @@ public class GraphScanFolderTests : IDisposable
     }
 
     [Fact]
+    public async Task Scan_with_since_date_filters_dest_by_receivedDateTime_and_select_omits_contentId()
+    {
+        StubFolders();
+        _server.Given(Request.Create()
+                   .WithPath("/v1.0/users/user@contoso.com/mailFolders/projects-id/messages").UsingGet())
+               .RespondWith(Response.Create().WithStatusCode(200)
+                   .WithHeader("Content-Type", "application/json").WithBody(MessagesJson));
+        _server.Given(Request.Create()
+                   .WithPath("/v1.0/users/user@contoso.com/messages/msg1/attachments").UsingGet())
+               .RespondWith(Response.Create().WithStatusCode(200)
+                   .WithHeader("Content-Type", "application/json").WithBody(Msg1AttachmentsJson));
+
+        var since = new DateTimeOffset(2026, 6, 1, 0, 0, 0, TimeSpan.Zero);
+        var digests = new List<DestMessageDigest>();
+        await foreach (var d in NewProvider().ScanFolderAsync(FolderPath.Parse("Inbox/Projects"), since, null, CancellationToken.None))
+        {
+            digests.Add(d);
+        }
+
+        digests.Should().HaveCount(2);
+        // The dest scan is restricted to the received-date window when one is set.
+        _server.LogEntries.Any(e => (e.RequestMessage?.RawQuery ?? "").Contains("receivedDateTime", StringComparison.Ordinal))
+            .Should().BeTrue("a date-scoped reconcile must filter the dest scan by receivedDateTime");
+        // Regression: the attachment metadata $select must NOT request 'contentId' — it is not a property of
+        // the base microsoft.graph.attachment type and 400s the entire scan against live Graph.
+        _server.LogEntries.Any(e => (e.RequestMessage?.RawQuery ?? "").Contains("contentId", StringComparison.Ordinal))
+            .Should().BeFalse("contentId is invalid on the base attachment type");
+    }
+
+    [Fact]
     public async Task Scan_yields_nothing_for_missing_folder()
     {
         StubFolders(); // does not contain "Archive"
 
         var digests = new List<DestMessageDigest>();
-        await foreach (var d in NewProvider().ScanFolderAsync(FolderPath.Parse("Archive"), CancellationToken.None))
+        await foreach (var d in NewProvider().ScanFolderAsync(FolderPath.Parse("Archive"), null, null, CancellationToken.None))
         {
             digests.Add(d);
         }

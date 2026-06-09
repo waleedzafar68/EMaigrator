@@ -67,6 +67,36 @@ public sealed class ConnectionEndpointsTests : IAsyncDisposable
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task Test_connection_resolves_the_secret_under_the_connector_key()
+    {
+        var (client, _) = await AuthClient.CreateAsync(_factory);
+        using var _client = client;
+
+        FakeImapPlugin.CurrentMode = FakeImapPlugin.Mode.Ok;
+        FakeImapPlugin.LastSecrets = null;
+
+        var id = (await (await client.PostAsJsonAsync("/api/v1/migrations", new { }))
+            .Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetString()!;
+        await client.PatchAsJsonAsync($"/api/v1/migrations/{id}/endpoints", new { from = "imap", to = "graph" });
+        await client.PutAsJsonAsync($"/api/v1/migrations/{id}/connection/from", new
+        {
+            auth = "ImapBasic",
+            settings = new { host = "h", port = "993", accountEmail = "a@b.c" },
+            secret = "pw-123",
+        });
+
+        var res = await client.PostAsync($"/api/v1/migrations/{id}/connection/from/test", null);
+        res.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        // The API must store the secret as connector-shaped JSON and resolve it the same way the worker
+        // run path does — so the connector sees Values["password"], never a {"secret":…} bundle no
+        // connector reads. This is the regression guard for the connect-test/run secret-shape mismatch.
+        FakeImapPlugin.LastSecrets.Should().NotBeNull();
+        FakeImapPlugin.LastSecrets!.Should().ContainKey("password").WhoseValue.Should().Be("pw-123");
+        FakeImapPlugin.LastSecrets.Should().NotContainKey("secret");
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task Test_connection_maps_provider_failure_to_catalog_error_code()
     {
         var (client, _) = await AuthClient.CreateAsync(_factory);

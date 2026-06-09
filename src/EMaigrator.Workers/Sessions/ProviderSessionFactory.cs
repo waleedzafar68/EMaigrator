@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using EMaigrator.Core.Abstractions;
 using EMaigrator.Core.Model;
+using EMaigrator.Infrastructure.Secrets;
 
 namespace EMaigrator.Workers.Sessions;
 
@@ -50,10 +50,9 @@ public sealed class ProviderSessionFactory : IProviderSessionFactory
         if (string.IsNullOrEmpty(descriptor.SecretRef))
             return new SecretBundle(new Dictionary<string, string>());
 
-        // Transient plaintext — never logged (DESIGN.md §10).
+        // Transient plaintext — never logged (DESIGN.md §10). Resolved via the shared SecretBundleShape so
+        // the run path, the API connect-test/preflight, and the CLI all read the same connector key.
         var plaintext = await _secrets.RetrieveAsync(descriptor.SecretRef, ct);
-        var values = JsonSerializer.Deserialize<Dictionary<string, string>>(plaintext)
-                     ?? new Dictionary<string, string>();
-        return new SecretBundle(values);
+        return new SecretBundle(SecretBundleShape.Unwrap(plaintext));
     }
 }

@@ -20,6 +20,10 @@ public sealed class FakeImapPlugin : IProviderPlugin
 
     public static Mode CurrentMode { get; set; } = Mode.Ok;
 
+    /// <summary>The secret bundle the plugin last received — lets a test prove the API resolved the
+    /// stored credential under the connector's real key (e.g. "password"), not a {"secret":…} bundle.</summary>
+    public static IReadOnlyDictionary<string, string>? LastSecrets { get; set; }
+
     public ProviderId Id => new("imap");
 
     public IReadOnlyCollection<AuthMethod> SupportedAuth =>
@@ -29,7 +33,11 @@ public sealed class FakeImapPlugin : IProviderPlugin
 
     public bool CanBeDestination => true;
 
-    public ISourceProvider CreateSource(ConnectionDescriptor descriptor, SecretBundle secrets) => new FakeSource();
+    public ISourceProvider CreateSource(ConnectionDescriptor descriptor, SecretBundle secrets)
+    {
+        LastSecrets = secrets.Values;
+        return new FakeSource();
+    }
 
     public IDestinationProvider CreateDestination(ConnectionDescriptor descriptor, SecretBundle secrets) =>
         throw new NotSupportedException("FakeImapPlugin is source-only.");

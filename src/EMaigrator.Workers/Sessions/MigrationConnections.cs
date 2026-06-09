@@ -7,4 +7,6 @@ public sealed record MigrationConnections(
     Guid JobId,
     string TenantId,
     ConnectionDescriptor Source,
-    ConnectionDescriptor Dest);
+    ConnectionDescriptor Dest,
+    DateTimeOffset? Since = null,
+    DateTimeOffset? Before = null);
