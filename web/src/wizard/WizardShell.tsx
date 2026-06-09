@@ -16,7 +16,7 @@ export function NewMigrationRedirect() {
     if (started.current) return;
     started.current = true;
     void createMigration()
-      .then((m) => navigate(`/migrations/${m.id}/from-to`, { replace: true }))
+      .then((m) => navigate(`/migrations/${m.id}/mode`, { replace: true }))
       .catch((e: unknown) => setError(e)); // 401 redirects globally; show anything else
   }, [navigate]);
   if (error) return <ErrorAlert {...errorAlertProps(error)} />;

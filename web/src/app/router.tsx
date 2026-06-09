@@ -5,6 +5,7 @@ import { Dashboard } from "../routes/Dashboard";
 import { Login } from "../routes/Login";
 import { Results } from "../routes/Results";
 import { NewMigrationRedirect, WizardShell } from "../wizard/WizardShell";
+import { StepMode } from "../wizard/StepMode";
 import { StepFromTo } from "../wizard/StepFromTo";
 import { StepConnect } from "../wizard/StepConnect";
 import { StepScope } from "../wizard/StepScope";
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
         path: "migrations/:id",
         element: <WizardShell />,
         children: [
+          { path: "mode", element: <StepMode /> },
           { path: "from-to", element: <StepFromTo /> },
           { path: "connect/:side", element: <StepConnect /> },
           { path: "scope", element: <StepScope /> },
