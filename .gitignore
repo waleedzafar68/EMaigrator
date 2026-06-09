@@ -47,3 +47,5 @@ playwright-report/
 
 # ---- Local docker-compose overrides (machine-local; e.g. host-port remaps) ----
 deploy/docker-compose.local.yml
+
+.superpowers/
