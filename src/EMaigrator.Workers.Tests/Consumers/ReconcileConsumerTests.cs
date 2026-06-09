@@ -94,6 +94,7 @@ public sealed class ReconcileConsumerTests
             .AddLogging()
             .AddSingleton(sessions).AddSingleton(lookup).AddSingleton(ledger)
             .AddSingleton(limiter).AddSingleton(status).AddSingleton(plans)
+            .AddSingleton(Substitute.For<IJobStatusFinalizer>())
             .AddSingleton<StreamingCopierFactory>()
             .AddMassTransitTestHarness(x => x.AddConsumer<ReconcileConsumer>())
             .BuildServiceProvider(true);
