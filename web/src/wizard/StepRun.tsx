@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Folder, Gauge, Pause, Play, Timer, X } from "lucide-react";
+import { CheckCheck, Copy, Folder, Gauge, Paperclip, Pause, Play, ShieldCheck, Timer, X } from "lucide-react";
 import type { MigrationDto } from "../api/types";
 import { cancel, pause, resume } from "../api/migrations";
 import { useMigrationStream } from "../api/useMigrationStream";
@@ -33,6 +33,7 @@ function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string
 
 export function StepRun() {
   const { migration } = useOutletContext<{ migration: MigrationDto }>();
+  const isReconcile = (migration.mode ?? "migrate") === "reconcile";
   const { progress, connectionState, status } = useMigrationStream(migration.id);
   const [dense, setDense] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
@@ -45,6 +46,16 @@ export function StepRun() {
     if (typeof rate !== "number") return;
     setSamples((s) => [...s, { t: tick.current++, rate }].slice(-30));
   }, [progress?.msgPerMin, progress?.migrated]);
+
+  // Reconcile activity feed: one line per folder advance (keyed on the current folder changing).
+  const [activity, setActivity] = useState<string[]>([]);
+  const lastFolder = useRef<string | null>(null);
+  useEffect(() => {
+    const f = progress?.currentFolder;
+    if (!isReconcile || !f || f === lastFolder.current) return;
+    lastFolder.current = f;
+    setActivity((a) => [f, ...a].slice(0, 20));
+  }, [isReconcile, progress?.currentFolder]);
 
   const pct = !progress
     ? 0
@@ -64,6 +75,89 @@ export function StepRun() {
   const remaining = Math.max(0, total - migrated);
   const showEta = !isTerminal && !isPaused && rate > 0 && remaining > 0;
   const eta = showEta ? formatEta((remaining / rate) * 60) : null;
+
+  // Shared pause/resume/cancel controls (only while the run is live).
+  const controls = !isTerminal ? (
+    <div className="flex gap-2">
+      {isPaused ? (
+        <Button type="button" variant="outline" onClick={() => void resume(migration.id)}>
+          <Play size={16} aria-hidden /> Resume
+        </Button>
+      ) : (
+        <Button type="button" variant="outline" onClick={() => void pause(migration.id)}>
+          <Pause size={16} aria-hidden /> Pause
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant={confirmingCancel ? "destructive" : "outline"}
+        onClick={() => { if (confirmingCancel) void cancel(migration.id); else setConfirmingCancel(true); }}
+      >
+        <X size={16} aria-hidden /> {confirmingCancel ? "Click again to confirm cancel" : "Cancel"}
+      </Button>
+    </div>
+  ) : null;
+
+  if (isReconcile && progress?.reconcile) {
+    const rc = progress.reconcile;
+    const folderPct = rc.folderTotal > 0 ? Math.round((rc.foldersDone / rc.folderTotal) * 100) : 0;
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-[length:var(--fs-h1)] font-semibold">Reconciling</h2>
+            {migration.from && migration.to ? (
+              <div className="mt-1 text-sm text-fg-muted"><ProviderRoute from={migration.from} to={migration.to} /></div>
+            ) : null}
+          </div>
+          {connectionState === "reconnecting" ? (
+            <span role="status" className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-throttled" aria-hidden /> Reconnecting…
+            </span>
+          ) : null}
+        </div>
+
+        <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-[var(--card-pad)] shadow-sm">
+          <div className="flex items-end justify-between">
+            <span className="text-sm font-medium text-fg">
+              Folder {rc.foldersDone.toLocaleString()} of ~{rc.folderTotal.toLocaleString()}
+            </span>
+            <span className="mono text-sm text-fg-muted">{folderPct}%</span>
+          </div>
+          <div className="mt-3">
+            <ProgressBar value={folderPct} label="Reconcile progress" />
+          </div>
+        </div>
+
+        <div className="grid gap-[var(--grid-gap)] sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile icon={<Copy size={16} aria-hidden />} label="Copied" value={rc.copied.toLocaleString()} />
+          <StatTile icon={<Paperclip size={16} aria-hidden />} label="Attachments backfilled" value={rc.backfilled.toLocaleString()} />
+          <StatTile icon={<CheckCheck size={16} aria-hidden />} label="Already complete (skipped)" value={rc.skipped.toLocaleString()} />
+          <StatTile icon={<Gauge size={16} aria-hidden />} label="Throughput" value={`${rate} msg/min`} />
+        </div>
+
+        {activity.length ? (
+          <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-3">
+            <div className="mb-2 text-xs text-fg-muted">Activity</div>
+            <ul className="space-y-1 text-sm">
+              {activity.map((f, i) => (
+                <li key={`${f}-${i}`} className="flex items-center gap-2 text-fg-muted">
+                  <Folder size={13} aria-hidden className="text-fg-subtle" />
+                  <span className="mono truncate text-fg">{f}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {controls}
+
+        <p className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
+          <ShieldCheck size={14} aria-hidden /> Non-destructive · never duplicates · safe to close — runs in the background.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

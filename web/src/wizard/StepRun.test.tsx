@@ -1,11 +1,18 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StepRun } from "./StepRun";
 import * as api from "../api/migrations";
 import * as stream from "../api/useMigrationStream";
 
-vi.mock("react-router-dom", () => ({ useOutletContext: () => ({ migration: { id: "m1", isBatch: false } }) }));
+let outlet: { migration: { id: string; isBatch: boolean; mode?: string; from?: string; to?: string } } = {
+  migration: { id: "m1", isBatch: false },
+};
+vi.mock("react-router-dom", () => ({ useOutletContext: () => outlet }));
+
+beforeEach(() => {
+  outlet = { migration: { id: "m1", isBatch: false } };
+});
 
 function mockStream(over: Partial<stream.MigrationStream>) {
   vi.spyOn(stream, "useMigrationStream").mockReturnValue({
@@ -57,5 +64,23 @@ describe("StepRun", () => {
     render(<StepRun />);
     expect(screen.getByRole("button", { name: /resume/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /pause/i })).not.toBeInTheDocument();
+  });
+
+  it("renders folder-based reconcile progress + tiles, not the migrate %-block", () => {
+    outlet = { migration: { id: "m1", isBatch: false, mode: "reconcile" } };
+    vi.spyOn(stream, "useMigrationStream").mockReturnValue({
+      connectionState: "connected", status: "Running", needsDecision: [],
+      progress: {
+        migrated: 318, total: 3158, currentFolder: "/Inbox", msgPerMin: 0, status: "Running",
+        reconcile: { foldersDone: 3, folderTotal: 650, copied: 318, backfilled: 12, skipped: 2840 },
+      },
+    });
+    render(<StepRun />);
+    expect(screen.getByText(/folder 3 of/i)).toBeInTheDocument();
+    expect(screen.getByText("318")).toBeInTheDocument();        // Copied
+    expect(screen.getByText("12")).toBeInTheDocument();         // Attachments backfilled
+    expect(screen.getByText(/2,840/)).toBeInTheDocument();      // Already-complete skipped
+    // The migrate message-count ratio block must NOT render in reconcile mode.
+    expect(screen.queryByText("318 / 3,158")).not.toBeInTheDocument();
   });
 });
