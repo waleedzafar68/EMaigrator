@@ -96,7 +96,12 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
             Before = conns.Before,
         };
 
-        foreach (var folder in await source.ListFoldersAsync(ct))
+        // Materialize the folder set once so the per-folder progress can report a stable total.
+        var folders = await source.ListFoldersAsync(ct);
+        int foldersDone = 0;
+        long totCopied = 0, totBackfilled = 0, totSkipped = 0;
+
+        foreach (var folder in folders)
         {
             var destPath = FolderRemediationResolver.Resolve(folder.Path, approved, constraints);
             await dest.EnsureFolderAsync(destPath, ct);
@@ -140,6 +145,18 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
             }
 
             LogFolderDone(mid, folderName, index.Count, copied, backfilled, skipped);
+
+            // Publish a per-folder live progress event carrying RUNNING totals across folders. Counts +
+            // folder names only — no body/attachment bytes ride the event (memory-only invariant holds).
+            totCopied += copied;
+            totBackfilled += backfilled;
+            totSkipped += skipped;
+            foldersDone++;
+            await context.Publish(
+                new MigrationProgressEvent(
+                    mid, totCopied, totCopied + totSkipped, folderName, 0d, "Running",
+                    new ReconcileProgress(foldersDone, folders.Count, totCopied, totBackfilled, totSkipped)),
+                ct);
         }
 
         var counts = await _ledger.GetCountsAsync(mid, ct);
