@@ -67,9 +67,16 @@ export function WizardShell() {
   const mode = migration.mode ?? "migrate";
   const steps = stepsFor(mode);
 
+  // The server's wizardStep no longer maps onto step indexes (the prepended mode step shifts every
+  // index, and reconcile drops Review) — highlight the step for the route the user is actually on,
+  // and let wizardStep only bound how far ahead the stepper allows jumping.
+  const routeIdx = steps.findIndex((s) => location.pathname.endsWith(`/${s.path}`));
+  const current = routeIdx >= 0 ? routeIdx : 0;
+  const maxReached = Math.max(current, Math.min(migration.wizardStep, steps.length - 1));
+
   return (
     <div className="mx-auto max-w-[760px]">
-      <Stepper current={migration.wizardStep} maxReached={migration.wizardStep} migrationId={id} steps={steps} mode={mode} />
+      <Stepper current={current} maxReached={maxReached} migrationId={id} steps={steps} mode={mode} />
       <Outlet context={{ migration, canBatch, mode }} />
       <div className="mt-10 border-t border-border pt-4">
         <button

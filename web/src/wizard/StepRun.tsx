@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { CheckCheck, Copy, Folder, Gauge, Paperclip, Pause, Play, ShieldCheck, Timer, X } from "lucide-react";
-import type { MigrationDto } from "../api/types";
+import { CheckCheck, Copy, Folder, Gauge, Loader2, Paperclip, Pause, Play, ShieldCheck, Timer, X } from "lucide-react";
+import type { MigrationDto, MigrationProgressDto } from "../api/types";
 import { cancel, pause, resume } from "../api/migrations";
 import { useMigrationStream } from "../api/useMigrationStream";
 import { ProgressBar } from "../components/ProgressBar";
@@ -34,9 +34,24 @@ function StatTile({ icon, label, value }: { icon: React.ReactNode; label: string
 export function StepRun() {
   const { migration } = useOutletContext<{ migration: MigrationDto }>();
   const isReconcile = (migration.mode ?? "migrate") === "reconcile";
-  const { progress, connectionState, status } = useMigrationStream(migration.id);
+  const { progress: streamProgress, connectionState, status } = useMigrationStream(migration.id);
   const [dense, setDense] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+
+  // Progress lives only in the live SignalR stream, so a page refresh used to reset the view to
+  // 0% until the NEXT event arrived (a long wait on big reconciles). Cache the last progress +
+  // activity per migration in sessionStorage — counts and folder names only, never message
+  // content — and rehydrate on mount so the view survives reloads.
+  const storageKey = `em-run:${migration.id}`;
+  const cached = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem(storageKey) ?? "null") as
+        { progress: MigrationProgressDto; activity: string[] } | null;
+    } catch {
+      return null;
+    }
+  }, [storageKey]);
+  const progress = streamProgress ?? cached?.progress ?? null;
 
   // Accumulate a small rolling window of throughput samples to draw a sparkline.
   const [samples, setSamples] = useState<{ t: number; rate: number }[]>([]);
@@ -48,14 +63,25 @@ export function StepRun() {
   }, [progress?.msgPerMin, progress?.migrated]);
 
   // Reconcile activity feed: one line per folder advance (keyed on the current folder changing).
-  const [activity, setActivity] = useState<string[]>([]);
-  const lastFolder = useRef<string | null>(null);
+  // Seeded from the cache so the rehydrated head folder isn't re-appended.
+  const [activity, setActivity] = useState<string[]>(() => cached?.activity ?? []);
+  const lastFolder = useRef<string | null>(cached?.activity?.[0] ?? null);
   useEffect(() => {
     const f = progress?.currentFolder;
     if (!isReconcile || !f || f === lastFolder.current) return;
     lastFolder.current = f;
     setActivity((a) => [f, ...a].slice(0, 20));
   }, [isReconcile, progress?.currentFolder]);
+
+  // Persist on every live event (best-effort: a full/blocked storage only loses refresh-survival).
+  useEffect(() => {
+    if (!streamProgress) return;
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ progress: streamProgress, activity }));
+    } catch {
+      // ignore — live view still works without the cache
+    }
+  }, [streamProgress, activity, storageKey]);
 
   const pct = !progress
     ? 0
@@ -98,9 +124,9 @@ export function StepRun() {
     </div>
   ) : null;
 
-  if (isReconcile && progress?.reconcile) {
-    const rc = progress.reconcile;
-    const folderPct = rc.folderTotal > 0 ? Math.round((rc.foldersDone / rc.folderTotal) * 100) : 0;
+  if (isReconcile) {
+    const rc = progress?.reconcile ?? null;
+    const folderPct = rc && rc.folderTotal > 0 ? Math.round((rc.foldersDone / rc.folderTotal) * 100) : 0;
     return (
       <div className="space-y-5">
         <div className="flex items-center justify-between gap-3">
@@ -118,23 +144,34 @@ export function StepRun() {
         </div>
 
         <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-[var(--card-pad)] shadow-sm">
-          <div className="flex items-end justify-between">
-            <span className="text-sm font-medium text-fg">
-              Folder {rc.foldersDone.toLocaleString()} of ~{rc.folderTotal.toLocaleString()}
-            </span>
-            <span className="mono text-sm text-fg-muted">{folderPct}%</span>
-          </div>
-          <div className="mt-3">
-            <ProgressBar value={folderPct} label="Reconcile progress" />
-          </div>
+          {rc ? (
+            <>
+              <div className="flex items-end justify-between">
+                <span className="text-sm font-medium text-fg">
+                  Folder {rc.foldersDone.toLocaleString()} of ~{rc.folderTotal.toLocaleString()}
+                </span>
+                <span className="mono text-sm text-fg-muted">{folderPct}%</span>
+              </div>
+              <div className="mt-3">
+                <ProgressBar value={folderPct} label="Reconcile progress" />
+              </div>
+            </>
+          ) : (
+            <div role="status" className="flex items-center gap-2.5 text-sm text-fg-muted">
+              <Loader2 size={15} aria-hidden className="animate-spin" />
+              Scanning folders — live counts appear as each folder completes…
+            </div>
+          )}
         </div>
 
-        <div className="grid gap-[var(--grid-gap)] sm:grid-cols-2 lg:grid-cols-4">
-          <StatTile icon={<Copy size={16} aria-hidden />} label="Copied" value={rc.copied.toLocaleString()} />
-          <StatTile icon={<Paperclip size={16} aria-hidden />} label="Attachments backfilled" value={rc.backfilled.toLocaleString()} />
-          <StatTile icon={<CheckCheck size={16} aria-hidden />} label="Already complete (skipped)" value={rc.skipped.toLocaleString()} />
-          <StatTile icon={<Gauge size={16} aria-hidden />} label="Throughput" value={`${rate} msg/min`} />
-        </div>
+        {rc ? (
+          <div className="grid gap-[var(--grid-gap)] sm:grid-cols-2 lg:grid-cols-4">
+            <StatTile icon={<Copy size={16} aria-hidden />} label="Copied" value={rc.copied.toLocaleString()} />
+            <StatTile icon={<Paperclip size={16} aria-hidden />} label="Attachments backfilled" value={rc.backfilled.toLocaleString()} />
+            <StatTile icon={<CheckCheck size={16} aria-hidden />} label="Already complete (skipped)" value={rc.skipped.toLocaleString()} />
+            <StatTile icon={<Gauge size={16} aria-hidden />} label="Throughput" value={`${rate} msg/min`} />
+          </div>
+        ) : null}
 
         {activity.length ? (
           <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-3">

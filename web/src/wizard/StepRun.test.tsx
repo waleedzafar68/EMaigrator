@@ -12,6 +12,7 @@ vi.mock("react-router-dom", () => ({ useOutletContext: () => outlet }));
 
 beforeEach(() => {
   outlet = { migration: { id: "m1", isBatch: false } };
+  sessionStorage.clear();
 });
 
 function mockStream(over: Partial<stream.MigrationStream>) {
@@ -82,5 +83,33 @@ describe("StepRun", () => {
     expect(screen.getByText(/2,840/)).toBeInTheDocument();      // Already-complete skipped
     // The migrate message-count ratio block must NOT render in reconcile mode.
     expect(screen.queryByText("318 / 3,158")).not.toBeInTheDocument();
+  });
+
+  it("reconcile mode without progress shows the Reconciling frame, not the migrate % view", () => {
+    outlet = { migration: { id: "m1", isBatch: false, mode: "reconcile" } };
+    vi.spyOn(stream, "useMigrationStream").mockReturnValue({
+      connectionState: "connected", status: null, needsDecision: [], progress: null,
+    });
+    render(<StepRun />);
+    expect(screen.getByRole("heading", { name: /reconciling/i })).toBeInTheDocument();
+    expect(screen.getByText(/scanning folders/i)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /migrating/i })).not.toBeInTheDocument();
+  });
+
+  it("rehydrates reconcile progress + activity from sessionStorage after a refresh", () => {
+    outlet = { migration: { id: "m1", isBatch: false, mode: "reconcile" } };
+    sessionStorage.setItem("em-run:m1", JSON.stringify({
+      progress: {
+        migrated: 4, total: 5, currentFolder: "SENT", msgPerMin: 0, status: "Running",
+        reconcile: { foldersDone: 1, folderTotal: 650, copied: 4, backfilled: 0, skipped: 1 },
+      },
+      activity: ["SENT"],
+    }));
+    vi.spyOn(stream, "useMigrationStream").mockReturnValue({
+      connectionState: "connected", status: null, needsDecision: [], progress: null,
+    });
+    render(<StepRun />);
+    expect(screen.getByText(/folder 1 of/i)).toBeInTheDocument();
+    expect(screen.getByText("SENT")).toBeInTheDocument(); // activity feed restored
   });
 });

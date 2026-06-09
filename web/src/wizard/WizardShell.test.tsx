@@ -16,7 +16,11 @@ vi.mock("react-router-dom", () => ({
   ),
 }));
 
-vi.mock("./Stepper", () => ({ Stepper: () => null }));
+vi.mock("./Stepper", () => ({
+  Stepper: (props: { current: number; maxReached: number }) => (
+    <div data-testid="stepper" data-current={props.current} data-max={props.maxReached} />
+  ),
+}));
 
 const migration = {
   id: "m1", status: "Draft", wizardStep: 3, from: "imap", to: "graph",
@@ -56,6 +60,17 @@ describe("WizardShell", () => {
     render(<WizardShell />);
     // to === graph → heuristic canBatch=true
     await waitFor(() => expect(screen.getByTestId("ctx")).toHaveTextContent("canBatch=true"));
+  });
+
+  it("highlights the step for the current ROUTE, not the server wizardStep", async () => {
+    // Route is /scope (index 4 in the migrate step set: mode, from-to, connect/from, connect/to,
+    // scope, review, run) while the server reports wizardStep=3 — the route must win, otherwise the
+    // stepper sits on "Connect To" while the user is on Scope/Run.
+    vi.spyOn(migrationsApi, "getMigration").mockResolvedValue(migration as never);
+    vi.spyOn(providersApi, "listProviders").mockResolvedValue([]);
+    render(<WizardShell />);
+    await waitFor(() => expect(screen.getByTestId("stepper")).toHaveAttribute("data-current", "4"));
+    expect(Number(screen.getByTestId("stepper").getAttribute("data-max"))).toBeGreaterThanOrEqual(4);
   });
 });
 
