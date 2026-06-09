@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useOutletContext } from "react-router-dom";
-import { CheckCheck, Copy, Folder, Gauge, Loader2, Paperclip, Pause, Play, ShieldCheck, Timer, X } from "lucide-react";
+import { Link, useOutletContext } from "react-router-dom";
+import { AlertTriangle, CheckCheck, Copy, Folder, Gauge, Loader2, Paperclip, Pause, Play, ShieldCheck, Timer, X } from "lucide-react";
 import type { MigrationDto, MigrationProgressDto } from "../api/types";
 import { cancel, pause, resume } from "../api/migrations";
 import { useMigrationStream } from "../api/useMigrationStream";
@@ -92,8 +92,12 @@ export function StepRun() {
         : 0;
   // Throttling is a dedicated flag, not a JobStatus value (see MigrationProgressDto).
   const throttled = progress?.throttled === true;
-  const isPaused = status === "Paused";
-  const isTerminal = status === "Completed" || status === "Partial" || status === "Failed" || status === "Cancelled";
+  // After the run no further events arrive, so a reloaded page must learn "done" from the cached
+  // last event or the REST migration status — the live stream alone would leave it looking active.
+  const effStatus = status ?? progress?.status ?? migration.status ?? null;
+  const isPaused = effStatus === "Paused";
+  const isTerminal =
+    effStatus === "Completed" || effStatus === "Partial" || effStatus === "Failed" || effStatus === "Cancelled";
 
   const migrated = progress?.migrated ?? 0;
   const total = progress?.total ?? 0;
@@ -143,26 +147,48 @@ export function StepRun() {
           ) : null}
         </div>
 
-        <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-[var(--card-pad)] shadow-sm">
-          {rc ? (
-            <>
-              <div className="flex items-end justify-between">
-                <span className="text-sm font-medium text-fg">
-                  Folder {rc.foldersDone.toLocaleString()} of ~{rc.folderTotal.toLocaleString()}
-                </span>
-                <span className="mono text-sm text-fg-muted">{folderPct}%</span>
-              </div>
-              <div className="mt-3">
-                <ProgressBar value={folderPct} label="Reconcile progress" />
-              </div>
-            </>
-          ) : (
-            <div role="status" className="flex items-center gap-2.5 text-sm text-fg-muted">
-              <Loader2 size={15} aria-hidden className="animate-spin" />
-              Scanning folders — live counts appear as each folder completes…
+        {isTerminal ? (
+          <div className="flex items-start gap-2.5 rounded-[var(--radius)] border border-border bg-surface-raised px-4 py-3 text-sm">
+            {effStatus === "Completed" ? (
+              <CheckCheck size={16} aria-hidden className="mt-0.5 text-success" />
+            ) : (
+              <AlertTriangle size={16} aria-hidden className="mt-0.5 text-warning" />
+            )}
+            <div className="space-y-1">
+              <p className="font-medium text-fg">
+                {effStatus === "Completed"
+                  ? "Reconcile complete — the destination matches the source."
+                  : `Reconcile finished — ${effStatus}. Some messages need attention.`}
+              </p>
+              <Link to={`/migrations/${migration.id}/results`} className="text-accent hover:underline">
+                View results
+              </Link>
             </div>
-          )}
-        </div>
+          </div>
+        ) : null}
+
+        {rc || !isTerminal ? (
+          <div className="rounded-[var(--radius)] border border-border bg-surface-raised p-[var(--card-pad)] shadow-sm">
+            {rc ? (
+              <>
+                <div className="flex items-end justify-between">
+                  <span className="text-sm font-medium text-fg">
+                    Folder {rc.foldersDone.toLocaleString()} of ~{rc.folderTotal.toLocaleString()}
+                  </span>
+                  <span className="mono text-sm text-fg-muted">{folderPct}%</span>
+                </div>
+                <div className="mt-3">
+                  <ProgressBar value={folderPct} label="Reconcile progress" />
+                </div>
+              </>
+            ) : (
+              <div role="status" className="flex items-center gap-2.5 text-sm text-fg-muted">
+                <Loader2 size={15} aria-hidden className="animate-spin" />
+                Scanning folders — live counts appear as each folder completes…
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {rc ? (
           <div className="grid gap-[var(--grid-gap)] sm:grid-cols-2 lg:grid-cols-4">

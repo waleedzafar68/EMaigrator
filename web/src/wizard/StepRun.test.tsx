@@ -5,10 +5,13 @@ import { StepRun } from "./StepRun";
 import * as api from "../api/migrations";
 import * as stream from "../api/useMigrationStream";
 
-let outlet: { migration: { id: string; isBatch: boolean; mode?: string; from?: string; to?: string } } = {
+let outlet: { migration: { id: string; isBatch: boolean; mode?: string; from?: string; to?: string; status?: string } } = {
   migration: { id: "m1", isBatch: false },
 };
-vi.mock("react-router-dom", () => ({ useOutletContext: () => outlet }));
+vi.mock("react-router-dom", () => ({
+  useOutletContext: () => outlet,
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={String(to)}>{children}</a>,
+}));
 
 beforeEach(() => {
   outlet = { migration: { id: "m1", isBatch: false } };
@@ -111,5 +114,32 @@ describe("StepRun", () => {
     render(<StepRun />);
     expect(screen.getByText(/folder 1 of/i)).toBeInTheDocument();
     expect(screen.getByText("SENT")).toBeInTheDocument(); // activity feed restored
+  });
+
+  it("reconcile shows a completion banner with a results link when the run finishes", () => {
+    outlet = { migration: { id: "m1", isBatch: false, mode: "reconcile" } };
+    vi.spyOn(stream, "useMigrationStream").mockReturnValue({
+      connectionState: "connected", status: "Partial", needsDecision: [],
+      progress: {
+        migrated: 362, total: 363, currentFolder: null, msgPerMin: 0, status: "Partial",
+        reconcile: { foldersDone: 650, folderTotal: 650, copied: 820, backfilled: 38, skipped: 276 },
+      },
+    });
+    render(<StepRun />);
+    expect(screen.getByText(/reconcile finished/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /view results/i })).toHaveAttribute("href", "/migrations/m1/results");
+    expect(screen.queryByRole("button", { name: /pause/i })).not.toBeInTheDocument();
+  });
+
+  it("reconcile shows the terminal banner on a cold load (REST status, no stream)", () => {
+    // After the run, no further events arrive — a reloaded page must learn "done" from the REST
+    // migration status, not the stream.
+    outlet = { migration: { id: "m1", isBatch: false, mode: "reconcile", status: "Completed" } };
+    vi.spyOn(stream, "useMigrationStream").mockReturnValue({
+      connectionState: "connected", status: null, needsDecision: [], progress: null,
+    });
+    render(<StepRun />);
+    expect(screen.getByText(/reconcile complete/i)).toBeInTheDocument();
+    expect(screen.queryByText(/scanning folders/i)).not.toBeInTheDocument();
   });
 });
