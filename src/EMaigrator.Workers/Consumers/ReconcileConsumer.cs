@@ -32,6 +32,7 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
     private readonly IRateLimiter _limiter;
     private readonly StreamingCopierFactory _copierFactory;
     private readonly IMigrationStatusWriter _status;
+    private readonly IJobStatusFinalizer _finalizer;
     private readonly ILogger<ReconcileConsumer> _log;
 
     public ReconcileConsumer(
@@ -42,6 +43,7 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
         IRateLimiter limiter,
         StreamingCopierFactory copierFactory,
         IMigrationStatusWriter status,
+        IJobStatusFinalizer finalizer,
         ILogger<ReconcileConsumer> log)
     {
         _sessions = sessions;
@@ -51,6 +53,7 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
         _limiter = limiter;
         _copierFactory = copierFactory;
         _status = status;
+        _finalizer = finalizer;
         _log = log;
     }
 
@@ -161,6 +164,18 @@ public sealed partial class ReconcileConsumer : IConsumer<ReconcileMailbox>
 
         var counts = await _ledger.GetCountsAsync(mid, ct);
         await _status.SetTerminalAsync(mid, counts, ct);
+
+        // Roll the owning job to terminal once all its mailboxes are done, and publish a terminal event
+        // (Reconcile set, so MigrationCompletionConsumer ignores it) so SignalR StatusChanged fires once.
+        var jobStatus = await _finalizer.FinalizeIfDoneAsync(mid, ct);
+        if (jobStatus is not null)
+        {
+            await context.Publish(
+                new MigrationProgressEvent(
+                    mid, totCopied, totCopied + totSkipped, null, 0d, jobStatus.Value.ToString(),
+                    new ReconcileProgress(foldersDone, folders.Count, totCopied, totBackfilled, totSkipped)),
+                ct);
+        }
 
         LogReconciled(mid);
     }

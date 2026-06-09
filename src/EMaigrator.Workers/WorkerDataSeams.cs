@@ -23,6 +23,7 @@ public static class WorkerDataSeams
         services.AddSingleton<IMessageRefLister, ImapMessageRefLister>();
         services.AddSingleton<IMessageHydrator, ImapMessageHydrator>();
         services.AddSingleton<IMigrationStatusWriter, EfMigrationStatusWriter>();
+        services.AddSingleton<IJobStatusFinalizer, EfJobStatusFinalizer>();
 
         services.AddSingleton<IRemediationPlanStore, EmptyRemediationPlanStore>();
         services.AddSingleton<IJobMigrationLookup, EmptyJobMigrationLookup>();

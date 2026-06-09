@@ -238,6 +238,7 @@ public static class ReconcileHost
                 services.Configure<OrchestrationOptions>(config.GetSection("Orchestration"));
                 services.AddSingleton<StreamingCopierFactory>();
                 services.AddSingleton<IMigrationStatusWriter, EfMigrationStatusWriter>();
+                services.AddSingleton<IJobStatusFinalizer, EfJobStatusFinalizer>();
                 services.AddSingleton<IRemediationPlanStore, EmptyRemediationStore>();
                 services.AddSingleton<IMigrationConnectionLookup>(new PermissiveConnectionLookup(conns));
                 services.AddSingleton<IProviderSessionFactory>(new FakeReconcileSessionFactory(source, dest));
