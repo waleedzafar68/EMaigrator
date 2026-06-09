@@ -53,6 +53,22 @@ A full live reconcile (`alice.chong@bellfield`, Google Workspace → M365, ~650 
 - **EF command logging runs at Information in Production**, flooding worker logs with every SQL statement
   during a run; lower the `Microsoft.EntityFrameworkCore.Database.Command` category level.
 
+## Reconcile progress is live-stream-only — cold loads start blind (`EMaigrator.Workers` + `EMaigrator.Api`)
+
+**Severity:** low — UX only; no data impact. The per-folder `ReconcileProgress` exists only in the
+SignalR stream: the server never persists running counts or completed-folder history (mailbox counts are
+written once, at `SetTerminalAsync`). The SPA mitigates with a per-migration sessionStorage cache
+(survives refresh in the same tab), but a NEW tab/browser/session shows "Scanning folders…" with no
+counts and no folder history until the next live event — observed live: SENT/INBOX vanished from the
+activity feed after a refresh onto a build that hadn't cached them. **Planned fix (agreed):**
+`ReconcileConsumer` persists the running `ReconcileProgress` snapshot + completed-folder names per
+mailbox (counts/folder names only — no body bytes; new columns must be allow-listed in the Infra
+forbidden-column Theory), the REST progress payload serves it, and the SPA seeds from REST before the
+stream connects. Additive CONTRACTS change. Do NOT deploy mid-run: rebuilding workers redelivers the
+in-flight `ReconcileMailbox` and restarts the run (idempotent but resets a live test). Related cosmetic:
+the reconcile Run view's Throughput tile always reads 0 (events publish `MsgPerMin=0`) — compute a
+client-side rate or hide the tile in reconcile mode.
+
 ## Resume-completion race (`EMaigrator.Workers`)
 
 **Severity:** low — misleading status only. **No data loss, no duplication.**
