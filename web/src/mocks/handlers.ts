@@ -1,9 +1,15 @@
 import { http, HttpResponse } from "msw";
 
 let draft = {
-  id: "e2e-1", status: "Draft", wizardStep: 0, from: null as string | null, to: null as string | null,
+  id: "e2e-1", status: "Draft", wizardStep: 0, mode: "migrate" as "migrate" | "reconcile",
+  from: null as string | null, to: null as string | null,
   isBatch: false, scopeSummary: null as string | null, mailboxCount: 1, progress: null, createdAt: "2026-06-01T00:00:00Z",
 };
+
+/** Current mock migration — read by the fake SignalR hub to emit mode-appropriate progress. */
+export function getDraft() {
+  return draft;
+}
 
 const okTest = { ok: true, folderCount: 14, messageCount: 3201, errorCode: null, rawDetail: null };
 // An all-zero estimate, the shape the API serializes while the background scan is still in flight.
@@ -21,9 +27,14 @@ const cleanPlan = {
 let preflightStarted = false;
 
 export const handlers = [
-  http.post("/api/v1/migrations", () => { draft = { ...draft, status: "Draft", wizardStep: 0 }; preflightStarted = false; return HttpResponse.json(draft); }),
+  http.post("/api/v1/migrations", () => { draft = { ...draft, status: "Draft", wizardStep: 0, mode: "migrate" }; preflightStarted = false; return HttpResponse.json(draft); }),
   http.get("/api/v1/migrations", () => HttpResponse.json([])),
   http.get("/api/v1/migrations/:id", () => HttpResponse.json(draft)),
+  http.patch("/api/v1/migrations/:id/mode", async ({ request }) => {
+    const body = (await request.json()) as { mode: "migrate" | "reconcile" };
+    draft = { ...draft, mode: body.mode, wizardStep: Math.max(draft.wizardStep, 2) };
+    return HttpResponse.json(draft);
+  }),
   http.patch("/api/v1/migrations/:id/endpoints", async ({ request }) => {
     const body = (await request.json()) as { from: string; to: string };
     draft = { ...draft, from: body.from, to: body.to, wizardStep: 1 };

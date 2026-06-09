@@ -7,6 +7,7 @@ import type { MigrationDto, ProviderCapabilityDto } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { errorAlertProps } from "../components/states/fromApiError";
 import { Stepper } from "./Stepper";
+import { stepsFor } from "./steps";
 
 export function NewMigrationRedirect() {
   const navigate = useNavigate();
@@ -61,10 +62,15 @@ export function WizardShell() {
   const apiCanBatch = providers?.find((p) => p.id === migration.to)?.canBatch;
   const canBatch = apiCanBatch ?? canBatchFor(migration);
 
+  // Mode-derived step set + label flow through the Stepper and the Outlet context so each step renders
+  // its mode-appropriate variant.
+  const mode = migration.mode ?? "migrate";
+  const steps = stepsFor(mode);
+
   return (
     <div className="mx-auto max-w-[760px]">
-      <Stepper current={migration.wizardStep} maxReached={migration.wizardStep} migrationId={id} />
-      <Outlet context={{ migration, canBatch }} />
+      <Stepper current={migration.wizardStep} maxReached={migration.wizardStep} migrationId={id} steps={steps} mode={mode} />
+      <Outlet context={{ migration, canBatch, mode }} />
       <div className="mt-10 border-t border-border pt-4">
         <button
           type="button"
