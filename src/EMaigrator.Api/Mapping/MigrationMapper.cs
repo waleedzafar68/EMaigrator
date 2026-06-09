@@ -37,6 +37,8 @@ public static class MigrationMapper
 
         var scopeSummary = ScopeSummary(job, mailboxes);
 
+        var mode = job.Mode == JobMode.Reconcile ? "reconcile" : "migrate";
+
         return new MigrationDto(
             job.Id,
             job.Status.ToString(),
@@ -47,7 +49,8 @@ public static class MigrationMapper
             scopeSummary,
             mailboxes.Count,
             progress,
-            job.CreatedAt);
+            job.CreatedAt,
+            mode);
     }
 
     private static string? ScopeSummary(Job job, IReadOnlyCollection<MailboxMigration> mailboxes)

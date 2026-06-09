@@ -70,6 +70,53 @@ public sealed class MigrationCrudTests
     }
 
     [Fact(Timeout = 30_000)]
+    public async Task Patch_mode_sets_reconcile_and_advances_wizard()
+    {
+        await using var factory = new ApiTestFactory(_fx);
+        var (client, _) = await AuthClient.CreateAsync(factory);
+        using var _client = client;
+
+        var id = await CreateDraftAsync(client);
+
+        using var patch = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/migrations/{id}/mode", UriKind.Relative),
+            new { mode = "reconcile" });
+        patch.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var dto = await patch.Content.ReadFromJsonAsync<JsonElement>();
+        dto.GetProperty("mode").GetString().Should().Be("reconcile");
+        dto.GetProperty("wizardStep").GetInt32().Should().BeGreaterThanOrEqualTo(2);
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Patch_mode_with_invalid_value_returns_400()
+    {
+        await using var factory = new ApiTestFactory(_fx);
+        var (client, _) = await AuthClient.CreateAsync(factory);
+        using var _client = client;
+
+        var id = await CreateDraftAsync(client);
+
+        using var patch = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/migrations/{id}/mode", UriKind.Relative),
+            new { mode = "bogus" });
+        patch.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact(Timeout = 30_000)]
+    public async Task Patch_mode_unknown_id_returns_404()
+    {
+        await using var factory = new ApiTestFactory(_fx);
+        var (client, _) = await AuthClient.CreateAsync(factory);
+        using var _client = client;
+
+        using var patch = await client.PatchAsJsonAsync(
+            new Uri($"/api/v1/migrations/{Guid.NewGuid()}/mode", UriKind.Relative),
+            new { mode = "reconcile" });
+        patch.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact(Timeout = 30_000)]
     public async Task Get_other_tenants_migration_returns_404()
     {
         await using var factory = new ApiTestFactory(_fx);

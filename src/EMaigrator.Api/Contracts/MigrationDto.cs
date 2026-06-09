@@ -17,7 +17,8 @@ public sealed record MigrationProgressSummary(
 /// <summary>
 /// The migration projection returned by every migrations route. Serialized camelCase by the default Web
 /// JSON options → keys <c>id, status, wizardStep, from, to, isBatch, scopeSummary, mailboxCount,
-/// progress, createdAt</c>. (CONTRACTS.md §6)
+/// progress, createdAt, mode</c>. <c>mode</c> (<c>"migrate"</c>|<c>"reconcile"</c>, default
+/// <c>"migrate"</c>) drives the mode-branched wizard. (CONTRACTS.md §6)
 /// </summary>
 public sealed record MigrationDto(
     Guid Id,
@@ -29,4 +30,5 @@ public sealed record MigrationDto(
     string? ScopeSummary,
     int MailboxCount,
     MigrationProgressSummary? Progress,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string Mode);

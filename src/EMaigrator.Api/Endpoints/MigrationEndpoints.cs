@@ -36,6 +36,7 @@ public static class MigrationEndpoints
         migrations.MapGet("/{id:guid}", GetAsync);
         migrations.MapDelete("/{id:guid}", DeleteAsync);
         migrations.MapPatch("/{id:guid}/endpoints", SetEndpointsAsync);
+        migrations.MapPatch("/{id:guid}/mode", SetModeAsync);
 
         return group;
     }
@@ -176,6 +177,38 @@ public static class MigrationEndpoints
 
         job.SourceProvider = new ProviderId(request.From);
         job.DestProvider = new ProviderId(request.To);
+        job.WizardStep = Math.Max(job.WizardStep, 2);
+        job.UpdatedAt = DateTimeOffset.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        var mailboxes = await LoadMailboxesAsync(db, job.Id);
+        return Results.Ok(MigrationMapper.ToDto(job, mailboxes));
+    }
+
+    private static async Task<IResult> SetModeAsync(
+        Guid id,
+        [FromBody] SetModeRequest request,
+        [FromServices] EmaigratorDbContext db)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(db);
+
+        var validationResults = new List<ValidationResult>();
+        var context = new ValidationContext(request);
+        if (!Validator.TryValidateObject(request, context, validationResults, validateAllProperties: true))
+        {
+            return Results.ValidationProblem(ToErrorDictionary(validationResults));
+        }
+
+        // The global query filter confines this lookup to the caller's tenant → cross-tenant ids return null (404).
+        var job = await db.Jobs.FirstOrDefaultAsync(j => j.Id == id);
+        if (job is null)
+        {
+            return Results.NotFound();
+        }
+
+        job.Mode = request.Mode == "reconcile" ? JobMode.Reconcile : JobMode.Migrate;
         job.WizardStep = Math.Max(job.WizardStep, 2);
         job.UpdatedAt = DateTimeOffset.UtcNow;
 

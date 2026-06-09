@@ -9,3 +9,10 @@ namespace EMaigrator.Api.Contracts;
 public sealed record SetEndpointsRequest(
     [property: Required, MinLength(1)] string From,
     [property: Required, MinLength(1)] string To);
+
+/// <summary>
+/// Sets a draft migration's <c>mode</c> at the wizard's Step 1 chooser. The value must be exactly
+/// <c>migrate</c> or <c>reconcile</c> (the regex is whole-string anchored by the validator). (CONTRACTS.md §6)
+/// </summary>
+public sealed record SetModeRequest(
+    [property: Required, RegularExpression("migrate|reconcile")] string Mode);
