@@ -1,18 +1,23 @@
 import { useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
-import { AlertTriangle, Check, ChevronRight, User, Users } from "lucide-react";
-import type { MailboxPairDto, MigrationDto, ScopeRequest } from "../api/types";
+import { AlertTriangle, Check, ChevronRight, Loader2, ShieldCheck, User, Users } from "lucide-react";
+import type { MailboxPairDto, MigrationDto, MigrationMode, ScopeRequest } from "../api/types";
+import { reconcile } from "../api/migrations";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { ErrorAlert } from "../components/ErrorAlert";
+import { errorAlertProps } from "../components/states/fromApiError";
 import { useDraft } from "./useDraft";
 import { parsePairsCsv } from "./csv";
 
-interface ScopeCtx { migration: MigrationDto; canBatch: boolean; }
+interface ScopeCtx { migration: MigrationDto; canBatch: boolean; mode?: MigrationMode; }
 
 export function StepScope() {
-  const { migration, canBatch } = useOutletContext<ScopeCtx>();
+  // `mode` defaults to migrate so a context that doesn't supply it stays on the full-migration path.
+  const { migration, canBatch, mode = "migrate" } = useOutletContext<ScopeCtx>();
   const { saveScope } = useDraft(migration.id);
   const navigate = useNavigate();
+  const isReconcile = mode === "reconcile";
   const [isBatch, setIsBatch] = useState(false);
   const [pairs, setPairs] = useState<MailboxPairDto[]>([]);
   const [csvErrors, setCsvErrors] = useState<string[]>([]);
@@ -20,6 +25,9 @@ export function StepScope() {
   const [newSource, setNewSource] = useState("");
   const [newDest, setNewDest] = useState("");
   const [since, setSince] = useState("");
+  const [before, setBefore] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<unknown>(null);
 
   async function onCsv(file: File) {
     const text = await new Promise<string>((resolve, reject) => {
@@ -33,20 +41,52 @@ export function StepScope() {
     setCsvErrors(errors);
   }
 
+  // A date-only input is widened to an explicit UTC instant so the API's DateTimeOffset binder accepts it.
+  const toInstant = (d: string) => new Date(`${d}T00:00:00Z`).toISOString();
+
   async function onContinue() {
-    const scope: ScopeRequest = { isBatch, pairs };
-    // A date-only input is widened to an explicit UTC instant so the API's DateTimeOffset binder accepts it.
-    if (since) scope.since = new Date(`${since}T00:00:00Z`).toISOString();
-    await saveScope(scope);
-    navigate(`/migrations/${migration.id}/review`);
+    setSaving(true);
+    setError(null);
+    try {
+      const scope: ScopeRequest = { isBatch, pairs };
+      if (since) scope.since = toInstant(since);
+      if (before) scope.before = toInstant(before);
+      await saveScope(scope);
+      if (isReconcile) {
+        // Reconcile has no approval gate — persist scope, kick the reconcile, and watch it run live.
+        await reconcile(migration.id);
+        navigate(`/migrations/${migration.id}/run`);
+      } else {
+        navigate(`/migrations/${migration.id}/review`);
+      }
+    } catch (e) {
+      setError(e); // surface the reason — never a silent dead Continue
+    } finally {
+      setSaving(false);
+    }
   }
+
+  const continueDisabled = saving || (isBatch && pairs.length === 0);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-[length:var(--fs-h1)] font-semibold">What should we migrate?</h2>
+        <h2 className="text-[length:var(--fs-h1)] font-semibold">
+          {isReconcile ? "What should we reconcile?" : "What should we migrate?"}
+        </h2>
         <p className="mt-1 text-sm text-fg-muted">Choose how many mailboxes this run covers.</p>
       </div>
+
+      {isReconcile ? (
+        <div className="flex items-start gap-2 rounded-[var(--radius)] border border-accent-line bg-accent-subtle px-4 py-3 text-sm">
+          <ShieldCheck size={16} aria-hidden className="mt-0.5 text-accent" />
+          <p className="text-fg-muted">
+            Reconcile compares the source against the <span className="font-medium text-fg">live destination</span> and
+            copies only what's missing (and backfills missing attachments). It is non-destructive and never duplicates —
+            safe to re-run.
+          </p>
+        </div>
+      ) : null}
 
       <div role="group" aria-label="Scope mode" className="grid grid-cols-2 gap-2 sm:max-w-md">
         <button
@@ -150,21 +190,74 @@ export function StepScope() {
         <Input aria-label="Since date" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="mt-1.5 w-48" />
       </label>
 
-      <div>
-        <button type="button" className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg" aria-expanded={showAdvanced}
-          onClick={() => setShowAdvanced((s) => !s)}>
-          <ChevronRight size={14} aria-hidden className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`} />
-          Advanced
-        </button>
-        {showAdvanced ? (
-          <div className="mt-3 space-y-3">
-            <label className="block text-sm font-medium">Include folders<Input aria-label="Include folders" className="mt-1.5" /></label>
-            <label className="block text-sm font-medium">Exclude folders<Input aria-label="Exclude folders" className="mt-1.5" /></label>
-          </div>
+      {isReconcile ? (
+        <>
+          <label className="block text-sm font-medium">
+            And before <span className="font-normal text-fg-muted">(optional — upper bound of the reconcile window)</span>
+            <Input aria-label="Before date" type="date" value={before} onChange={(e) => setBefore(e.target.value)} className="mt-1.5 w-48" />
+          </label>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">Match by</legend>
+            <div role="radiogroup" aria-label="Match by" className="grid grid-cols-2 gap-2 sm:max-w-md">
+              <button
+                type="button"
+                role="radio"
+                aria-checked
+                className="rounded-[var(--radius)] border border-accent bg-accent-subtle p-3 text-left text-sm ring-1 ring-accent"
+              >
+                <span className="block font-medium">Metadata</span>
+                <span className="block text-xs text-fg-muted">Message-ID + attachment list</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={false}
+                disabled
+                title="Coming soon"
+                className="rounded-[var(--radius)] border border-border p-3 text-left text-sm opacity-40"
+              >
+                <span className="block font-medium">Content hash</span>
+                <span className="block text-xs text-fg-muted">Coming soon</span>
+              </button>
+            </div>
+          </fieldset>
+        </>
+      ) : (
+        <div>
+          <button type="button" className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg" aria-expanded={showAdvanced}
+            onClick={() => setShowAdvanced((s) => !s)}>
+            <ChevronRight size={14} aria-hidden className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`} />
+            Advanced
+          </button>
+          {showAdvanced ? (
+            <div className="mt-3 space-y-3">
+              <label className="block text-sm font-medium">Include folders<Input aria-label="Include folders" className="mt-1.5" /></label>
+              <label className="block text-sm font-medium">Exclude folders<Input aria-label="Exclude folders" className="mt-1.5" /></label>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {error ? <ErrorAlert {...errorAlertProps(error)} /> : null}
+
+      <div className="space-y-1.5">
+        <Button type="button" disabled={continueDisabled} onClick={() => void onContinue()}>
+          {saving ? (
+            <span className="inline-flex items-center gap-1.5">
+              <Loader2 size={15} aria-hidden className="animate-spin" />
+              {isReconcile ? "Starting…" : "Saving…"}
+            </span>
+          ) : isReconcile ? (
+            "Start reconcile / repair"
+          ) : (
+            "Continue"
+          )}
+        </Button>
+        {isBatch && pairs.length === 0 ? (
+          <p className="text-xs text-fg-muted">Add at least one valid mailbox pair to continue.</p>
         ) : null}
       </div>
-
-      <Button type="button" onClick={() => void onContinue()}>Continue</Button>
     </div>
   );
 }
