@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createMigration, listMigrations, testConnection } from "./migrations";
+import { createMigration, listMigrations, setMode, testConnection } from "./migrations";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -26,6 +26,16 @@ describe("migrations api", () => {
     fetchMock.mockResolvedValue(jsonResponse([{ id: "m1", status: "Running" }]));
     await listMigrations({ status: "Running", q: "work" });
     expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/migrations?status=Running&q=work");
+  });
+
+  it("PATCHes /migrations/{id}/mode with the chosen mode", async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: "m1", status: "Draft", wizardStep: 2, mode: "reconcile" }));
+    const dto = await setMode("m1", "reconcile");
+    expect(dto.mode).toBe("reconcile");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/v1/migrations/m1/mode");
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toBe(JSON.stringify({ mode: "reconcile" }));
   });
 
   it("POSTs the test-connection route for a side", async () => {

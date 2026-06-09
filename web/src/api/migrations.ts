@@ -6,6 +6,7 @@ import type {
   ConnectionSide,
   ConnectionTestResult,
   MigrationDto,
+  MigrationMode,
   PreflightPlanDto,
   ResultsDto,
   ScopeRequest,
@@ -29,6 +30,9 @@ export const deleteMigration = (id: string) =>
 
 export const setEndpoints = (id: string, body: SetEndpointsRequest) =>
   apiFetch<MigrationDto>(`/migrations/${id}/endpoints`, { method: "PATCH", body: JSON.stringify(body) });
+
+export const setMode = (id: string, mode: MigrationMode) =>
+  apiFetch<MigrationDto>(`/migrations/${id}/mode`, { method: "PATCH", body: JSON.stringify({ mode }) });
 
 export const putConnection = (id: string, side: ConnectionSide, body: ConnectionRequest) =>
   apiFetch<MigrationDto>(`/migrations/${id}/connection/${side}`, { method: "PUT", body: JSON.stringify(body) });

@@ -12,6 +12,9 @@ export type AuthMethod =
 
 export type Severity = "Info" | "Warning" | "Blocker";
 
+// Job mode chosen at the wizard's Step 1 (CONTRACTS §6). Drives the mode-branched wizard.
+export type MigrationMode = "migrate" | "reconcile";
+
 // GET /providers — capability matrix the API is authoritative for (CONTRACTS §3). camelCase.
 export interface ProviderCapabilityDto {
   id: ProviderId;
@@ -40,12 +43,21 @@ export interface MigrationProgressDto {
   // throttling is NOT a JobStatus (CONTRACTS freezes Status ∈ JobStatus); rides a dedicated
   // optional flag the Api (Plan 08) sets from the rate-limiter. Absent/false ⇒ not throttled.
   throttled?: boolean;
+  // SignalR push only, reconcile mode only (CONTRACTS §6): folder-based live counts. Absent on migrate.
+  reconcile?: {
+    foldersDone: number;
+    folderTotal: number;
+    copied: number;
+    backfilled: number;
+    skipped: number;
+  };
 }
 
 export interface MigrationDto {
   id: string;
   status: JobStatus;
   wizardStep: number;
+  mode: MigrationMode;          // API MigrationDto.Mode — "migrate" (default) | "reconcile"
   from: ProviderId | null;
   to: ProviderId | null;
   isBatch: boolean;
