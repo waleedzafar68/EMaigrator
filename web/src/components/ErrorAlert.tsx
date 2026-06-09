@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 export interface ErrorAlertProps {
@@ -21,8 +21,14 @@ export function ErrorAlert({ message, helpLabel, helpHref, technicalDetail, trac
           {helpHref ? <a href={helpHref} className="text-accent">{helpLabel ?? "Learn more"}</a> : null}
           {hasTech ? (
             <div>
-              <button type="button" onClick={() => setOpen((o) => !o)} className="text-fg-muted" aria-expanded={open}>
-                ▸ Technical details
+              <button
+                type="button"
+                onClick={() => setOpen((o) => !o)}
+                className="inline-flex items-center gap-1 text-fg-muted hover:text-fg"
+                aria-expanded={open}
+              >
+                <ChevronRight size={13} aria-hidden className={`transition-transform ${open ? "rotate-90" : ""}`} />
+                Technical details
               </button>
               {open ? (
                 <pre className="mono mt-1 whitespace-pre-wrap rounded bg-surface-2 p-2 text-fg-muted">

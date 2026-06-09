@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { CheckCircle2, Clock, FolderTree, HardDrive, Loader2, Mail } from "lucide-react";
 import type { MigrationDto, PreflightPlanDto, RemediationAction } from "../api/types";
 import { approve, getPreflight, startPreflight } from "../api/migrations";
+import { Button } from "../components/ui/button";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { errorAlertProps } from "../components/states/fromApiError";
 import { formatBytes, formatDuration } from "./format";
@@ -10,6 +12,19 @@ const ACTION_LABEL: Record<RemediationAction, string> = {
   None: "Keep as-is", RetryWithBackoff: "Retry", FlattenFolder: "Flatten",
   SanitizeFolderName: "Sanitize", RenameFolder: "Rename", MergeFolder: "Merge", SkipMessage: "Skip & log",
 };
+
+const resolutionSelectClass =
+  "ml-2 h-8 rounded-md border border-input bg-transparent px-2 text-sm shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30";
+
+// A labelled metric chip used in the Ready / summary card.
+function Metric({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
+      <span className="text-fg-subtle">{icon}</span>
+      <span className="mono text-fg">{children}</span>
+    </span>
+  );
+}
 
 export function StepReview() {
   const { migration } = useOutletContext<{ migration: MigrationDto }>();
@@ -38,7 +53,12 @@ export function StepReview() {
 
   if (error) return <ErrorAlert {...errorAlertProps(error)} />;
   if (!plan || plan.scanning) {
-    return <div role="status" aria-label="Reviewing your mailboxes">Reviewing your mailboxes…</div>;
+    return (
+      <div role="status" aria-label="Reviewing your mailboxes" className="flex items-center gap-2.5 text-fg-muted">
+        <Loader2 size={16} aria-hidden className="animate-spin text-accent" />
+        Reviewing your mailboxes…
+      </div>
+    );
   }
 
   const overQuota = plan.usage ? plan.usage.used + plan.estimate.mailboxCount > plan.usage.quota : false;
@@ -53,12 +73,16 @@ export function StepReview() {
 
   if (plan.issues.length === 0 && !plan.usage) {
     return (
-      <div className="space-y-3 rounded-[6px] border border-border p-[var(--card-pad)]">
-        <h2 className="flex items-center gap-2 text-[length:var(--fs-h1)] font-semibold">✓ Ready to migrate</h2>
-        <p className="mono text-sm">{e.mailboxCount} mailbox · {e.folderCount} folders</p>
-        <p className="mono text-sm">{e.messageCount.toLocaleString()} messages · {formatBytes(e.totalBytes)}</p>
-        <p className="mono text-sm">Estimated: {formatDuration(e.estimatedDurationSeconds)}</p>
-        <button type="button" onClick={() => void onApprove()} className="rounded-[8px] bg-accent px-4 py-2 text-accent-fg">Start migration</button>
+      <div className="space-y-4 rounded-[var(--radius)] border border-success-line bg-success-bg p-[var(--card-pad)]">
+        <h2 className="flex items-center gap-2 text-[length:var(--fs-h1)] font-semibold">
+          <CheckCircle2 size={22} aria-hidden className="text-success" /> Ready to migrate
+        </h2>
+        <div className="flex flex-wrap gap-x-5 gap-y-2">
+          <Metric icon={<Mail size={14} aria-hidden />}>{e.mailboxCount} mailbox · {e.folderCount} folders</Metric>
+          <Metric icon={<HardDrive size={14} aria-hidden />}>{e.messageCount.toLocaleString()} messages · {formatBytes(e.totalBytes)}</Metric>
+          <Metric icon={<Clock size={14} aria-hidden />}>Estimated {formatDuration(e.estimatedDurationSeconds)}</Metric>
+        </div>
+        <Button type="button" onClick={() => void onApprove()}>Start migration</Button>
       </div>
     );
   }
@@ -72,29 +96,33 @@ export function StepReview() {
       </h2>
       <ul className="space-y-3">
         {plan.issues.map((i) => (
-          <li key={i.issueType} className={`rounded-[6px] border p-3 ${i.severity === "Blocker" ? "border-error" : "border-border"}`}>
-            <p>{i.description} {i.severity === "Blocker" ? <span className="text-error">(must fix)</span> : null}</p>
-            <label className="mt-2 block text-sm">Resolution
+          <li key={i.issueType} className={`rounded-[var(--radius)] border p-3 ${i.severity === "Blocker" ? "border-error bg-error-bg" : "border-warning-line bg-warning-bg"}`}>
+            <p className="flex items-start gap-2">
+              <FolderTree size={16} aria-hidden className={`mt-0.5 shrink-0 ${i.severity === "Blocker" ? "text-error" : "text-warning"}`} />
+              <span>{i.description} {i.severity === "Blocker" ? <span className="font-medium text-error">(must fix)</span> : null}</span>
+            </p>
+            <label className="mt-2 block text-sm text-fg-muted">Resolution
               <select aria-label={`Resolution for ${i.issueType}`} value={resolutions[i.issueType] ?? i.recommendedAction}
                 onChange={(ev) => setResolutions((r) => ({ ...r, [i.issueType]: ev.target.value as RemediationAction }))}
-                className="ml-2 h-[var(--control-h)] rounded-[6px] border border-border-strong px-2">
+                className={resolutionSelectClass}>
                 {i.options.map((o) => <option key={o} value={o}>{ACTION_LABEL[o]}</option>)}
               </select>
             </label>
           </li>
         ))}
       </ul>
-      <p className="mono text-sm">Summary: {e.mailboxCount} mailboxes · {e.messageCount.toLocaleString()} msgs · {formatDuration(e.estimatedDurationSeconds)}</p>
+      <p className="mono inline-flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
+        Summary: {e.mailboxCount} mailboxes · {e.messageCount.toLocaleString()} msgs · {formatDuration(e.estimatedDurationSeconds)}
+      </p>
       {plan.usage ? (
         <p className={overQuota || overCap ? "text-error" : "text-fg-muted"}>
           Needs {e.mailboxCount} mailboxes (you have {plan.usage.quota - plan.usage.used} left)
           {overCap ? ` · ${plan.usage.overCapMailboxes} mailboxes exceed the ${plan.usage.capGb} GB cap → upgrade to proceed` : ""}
         </p>
       ) : null}
-      <button type="button" disabled={blocked} onClick={() => void onApprove()}
-        className="rounded-[8px] bg-accent px-4 py-2 text-accent-fg disabled:opacity-40">
+      <Button type="button" disabled={blocked} onClick={() => void onApprove()}>
         Approve plan &amp; start
-      </button>
+      </Button>
     </div>
   );
 }

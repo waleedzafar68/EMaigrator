@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff, Mailbox } from "lucide-react";
 import { ApiError } from "../api/client";
 import { login, register } from "../api/auth";
 import { Button } from "../components/ui/button";
@@ -24,6 +25,7 @@ export function Login() {
   const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const isRegister = mode === "register";
 
@@ -60,7 +62,12 @@ export function Login() {
     <div className="flex min-h-screen items-center justify-center bg-bg p-4 text-fg">
       <Card className="w-full max-w-[400px]">
         <CardHeader>
-          <CardTitle className="text-[length:var(--fs-h2)]">EMaigrator</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-[length:var(--fs-h2)]">
+            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-fg">
+              <Mailbox size={18} aria-hidden />
+            </span>
+            EMaigrator
+          </CardTitle>
           <CardDescription>
             {isRegister
               ? "Create your account to start migrating mailboxes."
@@ -95,14 +102,25 @@ export function Login() {
               label="Password"
               hint={isRegister ? `At least ${MIN_PASSWORD} characters.` : undefined}
             >
-              <Input
-                id="password"
-                type="password"
-                autoComplete={isRegister ? "new-password" : "current-password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={isRegister ? "new-password" : "current-password"}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide value" : "Show value"}
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-fg-muted hover:text-fg"
+                >
+                  {showPassword ? <EyeOff size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
+                </button>
+              </div>
             </Field>
             {error && (
               <p role="alert" className="text-sm text-destructive">

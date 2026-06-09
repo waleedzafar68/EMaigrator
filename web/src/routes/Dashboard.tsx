@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { LayoutGrid, List } from "lucide-react";
+import { ArrowRight, LayoutGrid, List } from "lucide-react";
 import { listMigrations } from "../api/migrations";
 import { MigrationsHubClient } from "../api/signalr";
 import type { JobStatus, MigrationDto, UsageDto } from "../api/types";
-import { jobStatusToChip, StatusChip } from "../components/StatusChip";
+import { type ChipStatus, jobStatusToChip, StatusChip } from "../components/StatusChip";
 import { ProviderRoute } from "../components/ProviderRoute";
+import { ProgressBar } from "../components/ProgressBar";
+import { buttonVariants } from "../components/ui/button";
 
 type Layout = "cards" | "list";
 
@@ -17,6 +19,12 @@ const NON_TERMINAL: ReadonlySet<JobStatus> = new Set<JobStatus>([
 function isNonTerminal(status: JobStatus): boolean {
   return NON_TERMINAL.has(status);
 }
+
+// Status → left-accent bar color, so a row's state reads at a glance (paired with the icon+label chip).
+const ACCENT_BAR: Record<ChipStatus, string> = {
+  done: "bg-success", running: "bg-accent", throttled: "bg-throttled",
+  warning: "bg-warning", error: "bg-error", queued: "bg-idle",
+};
 
 function actionFor(m: MigrationDto): { to: string; label: string } {
   if (m.status === "Draft") return { to: `/migrations/${m.id}`, label: "Resume" };
@@ -40,15 +48,18 @@ function pct(m: MigrationDto): number {
 function Welcome() {
   const navigate = useNavigate();
   return (
-    <div className="mx-auto max-w-[560px] py-20 text-center">
-      <h2 className="text-[length:var(--fs-display)] font-semibold">Move your email, safely.</h2>
-      <p className="mt-3 text-fg-muted">
+    <div className="mx-auto max-w-[560px] py-24 text-center">
+      <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-subtle text-accent">
+        <ArrowRight size={26} aria-hidden />
+      </div>
+      <h2 className="text-[length:var(--fs-display)] font-semibold tracking-tight">Move your email, safely.</h2>
+      <p className="mx-auto mt-3 max-w-[44ch] text-fg-muted">
         EMaigrator copies a mailbox from one provider to another — your source is never changed.
       </p>
       <button
         type="button"
         onClick={() => navigate("/migrations/new")}
-        className="mt-8 inline-flex rounded-[8px] bg-accent px-5 py-3 text-accent-fg"
+        className={`mt-8 ${buttonVariants({ size: "lg" })}`}
       >
         Start your first migration
       </button>
@@ -140,57 +151,95 @@ export function Dashboard() {
   return (
     <div className="space-y-6">
       <UsageWidget usage={usage} />
-      <div className="flex justify-end gap-1" role="group" aria-label="Layout density">
-        <button
-          type="button"
-          aria-label="Cards view"
-          aria-pressed={layout === "cards"}
-          onClick={() => setAndPersist("cards")}
-          className={layout === "cards" ? "text-accent" : "text-fg-muted"}
-        >
-          <LayoutGrid size={18} aria-hidden />
-        </button>
-        <button
-          type="button"
-          aria-label="List view"
-          aria-pressed={layout === "list"}
-          onClick={() => setAndPersist("list")}
-          className={layout === "list" ? "text-accent" : "text-fg-muted"}
-        >
-          <List size={18} aria-hidden />
-        </button>
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-fg-muted">
+          {items.length} migration{items.length === 1 ? "" : "s"}
+        </p>
+        <div className="flex rounded-[var(--radius)] border border-border" role="group" aria-label="Layout density">
+          <button
+            type="button"
+            aria-label="Cards view"
+            aria-pressed={layout === "cards"}
+            onClick={() => setAndPersist("cards")}
+            className={`flex h-8 w-9 items-center justify-center rounded-l-[5px] ${layout === "cards" ? "bg-accent-subtle text-accent" : "text-fg-muted hover:text-fg"}`}
+          >
+            <LayoutGrid size={16} aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="List view"
+            aria-pressed={layout === "list"}
+            onClick={() => setAndPersist("list")}
+            className={`flex h-8 w-9 items-center justify-center rounded-r-[5px] ${layout === "list" ? "bg-accent-subtle text-accent" : "text-fg-muted hover:text-fg"}`}
+          >
+            <List size={16} aria-hidden />
+          </button>
+        </div>
       </div>
-      <ul
-        className={
-          layout === "cards"
-            ? "grid gap-[var(--grid-gap)] md:grid-cols-2"
-            : "divide-y divide-border"
-        }
-      >
-        {items.map((m) => {
-          const a = actionFor(m);
-          return (
-            <li
-              key={m.id}
-              className="flex items-center justify-between gap-4 rounded-[6px] border border-border p-[var(--card-pad)]"
-            >
-              <div className="min-w-0">
-                <ProviderRoute from={m.from} to={m.to} />
-                <div className="mt-1 text-sm text-fg-muted">
-                  {m.scopeSummary ?? `${m.mailboxCount} mailboxes`}
+
+      {layout === "cards" ? (
+        <ul className="grid gap-[var(--grid-gap)] md:grid-cols-2">
+          {items.map((m) => {
+            const a = actionFor(m);
+            const chip = jobStatusToChip(m.status);
+            return (
+              <li
+                key={m.id}
+                className="relative flex flex-col gap-3 overflow-hidden rounded-[var(--radius)] border border-border bg-surface-raised p-[var(--card-pad)] shadow-sm transition-colors hover:border-border-strong"
+              >
+                <span aria-hidden className={`absolute inset-y-0 left-0 w-1 ${ACCENT_BAR[chip]}`} />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <ProviderRoute from={m.from} to={m.to} />
+                    <div className="mt-1 text-sm text-fg-muted">
+                      {m.scopeSummary ?? `${m.mailboxCount} mailboxes`}
+                    </div>
+                  </div>
+                  <StatusChip status={chip} />
                 </div>
-              </div>
-              <div className="flex items-center gap-4">
-                {m.progress ? <span className="mono text-sm">{pct(m)}%</span> : null}
+                {m.progress ? (
+                  <div className="space-y-1.5">
+                    <ProgressBar value={pct(m)} label="Migration progress" />
+                    <div className="flex justify-between text-xs text-fg-muted">
+                      <span className="mono">{pct(m)}%</span>
+                      {m.progress.msgPerMin ? <span className="mono">{m.progress.msgPerMin} msg/min</span> : null}
+                    </div>
+                  </div>
+                ) : null}
+                <div className="mt-auto flex justify-end pt-1">
+                  <Link
+                    to={a.to}
+                    className={buttonVariants({ variant: a.label === "Resume" ? "default" : "outline", size: "sm" })}
+                  >
+                    {a.label}
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <ul className="divide-y divide-border rounded-[var(--radius)] border border-border">
+          {items.map((m) => {
+            const a = actionFor(m);
+            return (
+              <li key={m.id} className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <ProviderRoute from={m.from} to={m.to} />
+                  <div className="text-sm text-fg-muted">
+                    {m.scopeSummary ?? `${m.mailboxCount} mailboxes`}
+                  </div>
+                </div>
+                {m.progress ? <span className="mono w-12 text-right text-sm text-fg-muted">{pct(m)}%</span> : null}
                 <StatusChip status={jobStatusToChip(m.status)} />
-                <Link to={a.to} className="text-accent">
+                <Link to={a.to} className={buttonVariants({ variant: "ghost", size: "sm" })}>
                   {a.label}
                 </Link>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -200,7 +249,7 @@ export function UsageWidget({ usage }: { usage: UsageDto | null }) {
   const usagePct =
     usage.quota > 0 ? Math.min(100, Math.round((usage.used / usage.quota) * 100)) : 0;
   return (
-    <div className="flex items-center gap-3 rounded-[6px] border border-border p-3 text-sm">
+    <div className="flex items-center gap-3 rounded-[var(--radius)] border border-border p-3 text-sm">
       <span className="text-fg-muted">Usage</span>
       <div className="h-2 w-40 overflow-hidden rounded-full bg-surface-2">
         <div className="h-full bg-accent" style={{ width: `${usagePct}%` }} />

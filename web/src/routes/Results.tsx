@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { AlertTriangle, Check, Download, Lock, MinusCircle, RefreshCw, Wrench } from "lucide-react";
 import type { AuditEntryDto, ResultsDto } from "../api/types";
 import { getAudit, getResults, reconcile, rerun, reportUrl } from "../api/migrations";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { errorAlertProps } from "../components/states/fromApiError";
 import { formatElapsed } from "../wizard/format";
@@ -16,6 +19,18 @@ function resultsHeader(data: ResultsDto): string {
   }
   const clean = data.reconciliation.matched && data.counts.failed === 0;
   return clean ? "Migration complete" : "Migration complete — Partial";
+}
+
+function Stat({ icon, value, label, cls }: { icon: React.ReactNode; value: string; label: string; cls: string }) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-[var(--radius)] border border-border bg-surface-raised px-3.5 py-2.5">
+      <span className={cls}>{icon}</span>
+      <span>
+        <span className="mono block text-base font-semibold text-fg">{value}</span>
+        <span className="block text-xs text-fg-muted">{label}</span>
+      </span>
+    </div>
+  );
 }
 
 export function Results() {
@@ -62,68 +77,71 @@ export function Results() {
   if (!data) return <div role="status" aria-label="Loading results" className="h-24 animate-pulse rounded bg-surface-2" />;
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-[length:var(--fs-h1)] font-semibold">{resultsHeader(data)}</h2>
-      <p className="mono text-sm">
-        ✓ {data.counts.migrated.toLocaleString()} migrated · ⚠ {data.needsDecision.length} need your decision · ⤫ {data.counts.skipped} skipped
-      </p>
-      <p className="text-sm text-fg-muted">
-        {data.reconciliation.sourceCount.toLocaleString()} in source, {data.reconciliation.destCount.toLocaleString()} in destination
-        {data.reconciliation.matched ? " ✓" : ""}
-      </p>
-      {data.durationSeconds != null ? (
-        <p className="mono text-sm text-fg-muted">Took {formatElapsed(data.durationSeconds)}</p>
-      ) : null}
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[length:var(--fs-h1)] font-semibold">{resultsHeader(data)}</h2>
+        <p className="mt-1 text-sm text-fg-muted">
+          {data.reconciliation.sourceCount.toLocaleString()} in source, {data.reconciliation.destCount.toLocaleString()} in destination
+          {data.reconciliation.matched ? <Check size={14} aria-hidden className="ml-1 inline text-success" /> : null}
+          {data.durationSeconds != null ? <span className="mono"> · Took {formatElapsed(data.durationSeconds)}</span> : null}
+        </p>
+      </div>
 
-      <div className="space-y-2 rounded-[6px] border border-border-strong p-3">
-        <h3 className="font-medium">Reconcile / repair</h3>
+      <div className="grid gap-[var(--grid-gap)] sm:grid-cols-3">
+        <Stat icon={<Check size={18} aria-hidden />} cls="text-success" value={data.counts.migrated.toLocaleString()} label="migrated" />
+        <Stat icon={<AlertTriangle size={18} aria-hidden />} cls="text-warning" value={String(data.needsDecision.length)} label="need your decision" />
+        <Stat icon={<MinusCircle size={18} aria-hidden />} cls="text-fg-muted" value={String(data.counts.skipped)} label="skipped" />
+      </div>
+
+      <div className="space-y-2 rounded-[var(--radius)] border border-border bg-surface-raised p-4">
+        <h3 className="flex items-center gap-2 font-medium"><Wrench size={16} aria-hidden className="text-accent" /> Reconcile / repair</h3>
         <p className="text-sm text-fg-muted">
           Re-scan the destination and copy any messages still missing + backfill missing attachments. Non-destructive · idempotent.
         </p>
         {reconcileStarted ? (
-          <p role="status" className="text-sm text-accent">Reconcile started — now running.</p>
+          <p role="status" className="inline-flex items-center gap-1.5 text-sm text-accent"><RefreshCw size={14} aria-hidden className="animate-spin" /> Reconcile started — now running.</p>
         ) : (
-          <button type="button" onClick={onReconcile} disabled={reconciling}
-            className="rounded-[8px] bg-accent px-3 py-1.5 text-accent-fg disabled:opacity-50">
+          <Button type="button" onClick={onReconcile} disabled={reconciling}>
             {reconciling ? "Reconciling…" : "Reconcile / repair"}
-          </button>
+          </Button>
         )}
         {reconcileError ? <ErrorAlert {...errorAlertProps(reconcileError)} /> : null}
       </div>
 
       {data.needsDecision.length ? (
-        <div className="space-y-2 rounded-[6px] border border-warning p-3">
-          <h3 className="font-medium">Needs your decision ({data.needsDecision.length})</h3>
+        <div className="space-y-2 rounded-[var(--radius)] border border-warning-line bg-warning-bg p-4">
+          <h3 className="flex items-center gap-2 font-medium"><AlertTriangle size={16} aria-hidden className="text-warning" /> Needs your decision ({data.needsDecision.length})</h3>
           <ul className="space-y-1 text-sm">
             {data.needsDecision.map((n, i) => (
-              <li key={i} className="flex items-center justify-between">
+              <li key={i} className="flex items-center justify-between gap-3">
                 <span>{n.detail}</span>
                 <button type="button" disabled title="Coming in a future release" className="text-accent opacity-50">Resolve</button>
               </li>
             ))}
           </ul>
-          <button type="button" onClick={() => void rerun(id)} className="rounded-[8px] bg-accent px-3 py-1.5 text-accent-fg">
-            Re-run unfinished items
-          </button>
-          <span className="ml-2 text-sm text-fg-muted">idempotent · free</span>
+          <div className="flex items-center gap-2 pt-1">
+            <Button type="button" variant="outline" size="sm" onClick={() => void rerun(id)}>
+              <RefreshCw size={14} aria-hidden /> Re-run unfinished items
+            </Button>
+            <span className="text-sm text-fg-muted">idempotent · free</span>
+          </div>
         </div>
       ) : null}
 
-      <div className="flex items-center gap-3">
-        <input aria-label="Search audit" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search"
-          className="h-[var(--control-h)] rounded-[6px] border border-border-strong px-2 text-sm" />
-        <label className="flex items-center gap-1 text-sm">
-          <input type="checkbox" checked={failuresOnly} onChange={(e) => setFailuresOnly(e.target.checked)} /> Failures only
+      <div className="flex flex-wrap items-center gap-3">
+        <Input aria-label="Search audit" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" className="h-9 w-56" />
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="checkbox" checked={failuresOnly} onChange={(e) => setFailuresOnly(e.target.checked)} className="accent-[var(--accent)]" /> Failures only
         </label>
-        <a href={reportUrl(id, "csv")} className="text-accent">Export CSV</a>
-        <a href={reportUrl(id, "pdf")} className="text-accent">Export PDF</a>
+        <a href={reportUrl(id, "csv")} className="ml-auto inline-flex items-center gap-1.5 text-accent hover:underline"><Download size={14} aria-hidden /> Export CSV</a>
+        <a href={reportUrl(id, "pdf")} className="inline-flex items-center gap-1.5 text-accent hover:underline"><Download size={14} aria-hidden /> Export PDF</a>
       </div>
 
       <AuditTable entries={audit} />
 
       {data.logDeletesAt ? (
-        <p className="text-sm text-fg-muted">
-          🔒 This log auto-deletes on {new Date(data.logDeletesAt).toLocaleDateString()}. <button type="button" disabled title="Coming in a future release" className="text-accent opacity-50">Delete now</button>
+        <p className="inline-flex items-center gap-1.5 text-sm text-fg-muted">
+          <Lock size={14} aria-hidden /> This log auto-deletes on {new Date(data.logDeletesAt).toLocaleDateString()}. <button type="button" disabled title="Coming in a future release" className="text-accent opacity-50">Delete now</button>
         </p>
       ) : null}
     </div>

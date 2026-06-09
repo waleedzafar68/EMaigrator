@@ -1,6 +1,9 @@
 import { useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
+import { AlertTriangle, Check, ChevronRight, User, Users } from "lucide-react";
 import type { MailboxPairDto, MigrationDto, ScopeRequest } from "../api/types";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
 import { useDraft } from "./useDraft";
 import { parsePairsCsv } from "./csv";
 
@@ -39,35 +42,65 @@ export function StepScope() {
   }
 
   return (
-    <div className="space-y-5">
-      <h2 className="text-[length:var(--fs-h1)] font-semibold">What should we migrate?</h2>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[length:var(--fs-h1)] font-semibold">What should we migrate?</h2>
+        <p className="mt-1 text-sm text-fg-muted">Choose how many mailboxes this run covers.</p>
+      </div>
 
-      <div role="group" aria-label="Scope mode" className="flex gap-2">
-        <button type="button" aria-pressed={!isBatch} onClick={() => setIsBatch(false)}
-          className={`rounded-[6px] border px-3 py-1.5 ${!isBatch ? "border-accent" : "border-border"}`}>Single</button>
-        <button type="button" aria-pressed={isBatch} disabled={!canBatch} onClick={() => setIsBatch(true)}
-          className={`rounded-[6px] border px-3 py-1.5 disabled:opacity-40 ${isBatch ? "border-accent" : "border-border"}`}>Batch</button>
+      <div role="group" aria-label="Scope mode" className="grid grid-cols-2 gap-2 sm:max-w-md">
+        <button
+          type="button"
+          aria-pressed={!isBatch}
+          onClick={() => setIsBatch(false)}
+          className={`flex items-start gap-2.5 rounded-[var(--radius)] border p-3 text-left transition-colors ${
+            !isBatch ? "border-accent bg-accent-subtle ring-1 ring-accent" : "border-border hover:bg-surface-2"
+          }`}
+        >
+          <User size={16} aria-hidden className="mt-0.5 text-accent" />
+          <span>
+            <span className="block text-sm font-medium">Single</span>
+            <span className="block text-xs text-fg-muted">One mailbox</span>
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-pressed={isBatch}
+          disabled={!canBatch}
+          onClick={() => setIsBatch(true)}
+          className={`flex items-start gap-2.5 rounded-[var(--radius)] border p-3 text-left transition-colors disabled:opacity-40 ${
+            isBatch ? "border-accent bg-accent-subtle ring-1 ring-accent" : "border-border hover:bg-surface-2"
+          }`}
+        >
+          <Users size={16} aria-hidden className="mt-0.5 text-accent" />
+          <span>
+            <span className="block text-sm font-medium">Batch</span>
+            <span className="block text-xs text-fg-muted">Many mailboxes (CSV)</span>
+          </span>
+        </button>
       </div>
       {!canBatch ? (
         <p className="text-sm text-fg-muted">To migrate multiple mailboxes, reconnect using admin access.</p>
       ) : null}
 
       {isBatch ? (
-        <div className="space-y-3">
-          <label className="block text-sm">Import CSV (source_mailbox, destination_mailbox)
+        <div className="space-y-4">
+          <label className="block text-sm font-medium">
+            Import CSV <span className="font-normal text-fg-muted">(source_mailbox, destination_mailbox)</span>
             <input aria-label="Import CSV" type="file" accept=".csv,text/csv"
-              onChange={(e) => e.target.files?.[0] && void onCsv(e.target.files[0])} className="mt-1 block" />
+              onChange={(e) => e.target.files?.[0] && void onCsv(e.target.files[0])}
+              className="mt-1.5 block w-full text-sm text-fg-muted file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-surface-2 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-fg hover:file:bg-border" />
           </label>
-          <div className="flex items-end gap-2">
-            <label className="text-sm">Source mailbox
-              <input aria-label="New source mailbox" value={newSource} onChange={(e) => setNewSource(e.target.value)}
-                className="mt-1 block rounded-[6px] border border-border-strong px-2 py-1" />
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-sm font-medium">
+              Source mailbox
+              <Input aria-label="New source mailbox" value={newSource} onChange={(e) => setNewSource(e.target.value)} className="mt-1.5 w-56" />
             </label>
-            <label className="text-sm">Destination mailbox
-              <input aria-label="New destination mailbox" value={newDest} onChange={(e) => setNewDest(e.target.value)}
-                className="mt-1 block rounded-[6px] border border-border-strong px-2 py-1" />
+            <label className="text-sm font-medium">
+              Destination mailbox
+              <Input aria-label="New destination mailbox" value={newDest} onChange={(e) => setNewDest(e.target.value)} className="mt-1.5 w-56" />
             </label>
-            <button type="button" className="rounded-[6px] border border-border px-3 py-1.5 text-sm"
+            <Button type="button" variant="outline" size="sm"
               onClick={() => {
                 const s = newSource.trim();
                 const d = newDest.trim();
@@ -77,40 +110,61 @@ export function StepScope() {
                 setNewDest("");
               }}>
               Add pair
-            </button>
+            </Button>
           </div>
-          {csvErrors.length ? <ul className="text-sm text-error">{csvErrors.map((e) => <li key={e}>{e}</li>)}</ul> : null}
+          {csvErrors.length ? <ul className="space-y-0.5 text-sm text-error">{csvErrors.map((e) => <li key={e}>{e}</li>)}</ul> : null}
           {pairs.length ? (
-            <table className="w-full text-sm"><thead><tr className="text-left text-fg-muted"><th>From</th><th>To</th><th>Status</th></tr></thead>
-              <tbody>{pairs.map((p, i) => (
-                <tr key={i} className="border-t border-border">
-                  <td className="mono">{p.sourceMailbox}</td>
-                  <td className="mono">{p.destMailbox}</td>
-                  <td>{p.sourceMailbox && p.destMailbox ? "✓ valid" : "⚠ incomplete"}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+            <div className="overflow-x-auto rounded-[var(--radius)] border border-border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface text-left text-xs font-medium tracking-wide text-fg-muted uppercase">
+                    <th className="px-3 py-2">From</th><th className="px-3 py-2">To</th><th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody>{pairs.map((p, i) => {
+                  const valid = Boolean(p.sourceMailbox && p.destMailbox);
+                  return (
+                    <tr key={i} className="border-b border-border last:border-0">
+                      <td className="mono px-3 py-2">{p.sourceMailbox}</td>
+                      <td className="mono px-3 py-2">{p.destMailbox}</td>
+                      <td className="px-3 py-2">
+                        {valid ? (
+                          <span className="inline-flex items-center gap-1.5 text-success"><Check size={14} aria-hidden />valid</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 text-warning"><AlertTriangle size={14} aria-hidden />incomplete</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}</tbody>
+              </table>
+            </div>
           ) : null}
         </div>
       ) : (
-        <p className="text-fg-muted">Migrating one mailbox. Confirm and continue.</p>
+        <p className="text-sm text-fg-muted">Migrating one mailbox. Confirm and continue.</p>
       )}
 
-      <label className="block text-sm">Only mail since (optional — limits a migrate or reconcile to a recent window)
-        <input aria-label="Since date" type="date" value={since} onChange={(e) => setSince(e.target.value)}
-          className="mt-1 block h-[var(--control-h)] rounded-[6px] border border-border-strong px-2" />
+      <label className="block text-sm font-medium">
+        Only mail since <span className="font-normal text-fg-muted">(optional — limits a migrate or reconcile to a recent window)</span>
+        <Input aria-label="Since date" type="date" value={since} onChange={(e) => setSince(e.target.value)} className="mt-1.5 w-48" />
       </label>
 
-      <button type="button" className="text-sm text-fg-muted" aria-expanded={showAdvanced}
-        onClick={() => setShowAdvanced((s) => !s)}>▸ Advanced</button>
-      {showAdvanced ? (
-        <div className="space-y-2">
-          <label className="block text-sm">Include folders<input aria-label="Include folders" className="mt-1 block w-full rounded-[6px] border border-border-strong px-2 py-1" /></label>
-          <label className="block text-sm">Exclude folders<input aria-label="Exclude folders" className="mt-1 block w-full rounded-[6px] border border-border-strong px-2 py-1" /></label>
-        </div>
-      ) : null}
+      <div>
+        <button type="button" className="inline-flex items-center gap-1 text-sm text-fg-muted hover:text-fg" aria-expanded={showAdvanced}
+          onClick={() => setShowAdvanced((s) => !s)}>
+          <ChevronRight size={14} aria-hidden className={`transition-transform ${showAdvanced ? "rotate-90" : ""}`} />
+          Advanced
+        </button>
+        {showAdvanced ? (
+          <div className="mt-3 space-y-3">
+            <label className="block text-sm font-medium">Include folders<Input aria-label="Include folders" className="mt-1.5" /></label>
+            <label className="block text-sm font-medium">Exclude folders<Input aria-label="Exclude folders" className="mt-1.5" /></label>
+          </div>
+        ) : null}
+      </div>
 
-      <button type="button" onClick={() => void onContinue()} className="rounded-[8px] bg-accent px-4 py-2 text-accent-fg">Continue</button>
+      <Button type="button" onClick={() => void onContinue()}>Continue</Button>
     </div>
   );
 }

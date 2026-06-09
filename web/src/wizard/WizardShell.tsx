@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
+import { RotateCcw } from "lucide-react";
 import { createMigration, deleteMigration, getMigration } from "../api/migrations";
 import { listProviders } from "../api/providers";
 import type { MigrationDto, ProviderCapabilityDto } from "../api/types";
@@ -34,6 +35,7 @@ export function WizardShell() {
   const [migration, setMigration] = useState<MigrationDto | null>(null);
   const [error, setError] = useState<unknown>(null);
   const [providers, setProviders] = useState<ProviderCapabilityDto[] | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,10 +65,17 @@ export function WizardShell() {
     <div className="mx-auto max-w-[760px]">
       <Stepper current={migration.wizardStep} maxReached={migration.wizardStep} migrationId={id} />
       <Outlet context={{ migration, canBatch }} />
-      <div className="mt-8 border-t border-border pt-4">
-        <button type="button" className="text-sm text-fg-muted"
-          onClick={() => { void deleteMigration(id).then(() => navigate("/")); }}>
-          Reset / Start over
+      <div className="mt-10 border-t border-border pt-4">
+        <button
+          type="button"
+          className={`inline-flex items-center gap-1.5 text-sm transition-colors ${confirmReset ? "text-error" : "text-fg-muted hover:text-fg"}`}
+          onClick={() => {
+            if (confirmReset) void deleteMigration(id).then(() => navigate("/"));
+            else setConfirmReset(true);
+          }}
+        >
+          <RotateCcw size={14} aria-hidden />
+          {confirmReset ? "Click again to discard this migration" : "Reset / Start over"}
         </button>
       </div>
     </div>
