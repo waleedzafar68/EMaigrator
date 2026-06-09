@@ -67,7 +67,13 @@ forbidden-column Theory), the REST progress payload serves it, and the SPA seeds
 stream connects. Additive CONTRACTS change. Do NOT deploy mid-run: rebuilding workers redelivers the
 in-flight `ReconcileMailbox` and restarts the run (idempotent but resets a live test). Related cosmetic:
 the reconcile Run view's Throughput tile always reads 0 (events publish `MsgPerMin=0`) — compute a
-client-side rate or hide the tile in reconcile mode.
+client-side rate or hide the tile in reconcile mode. Two further gaps from live re-run testing
+(2026-06-10): **(a) reconcile ignores Pause/Cancel** — `ReconcileConsumer` never checks
+`IMigrationControlGate`, so the Run view's controls have no effect on a reconcile (the migrate batch
+path does check); **(b) reconcile writes no audit rows** — the reconcile copy path marks the ledger but
+never writes `MigrationLogRow`s, so the Results audit table shows "No audit entries yet" for
+reconcile-only jobs. (The re-run lifecycle defects — stale mailbox rows and unguarded double-start —
+were fixed 2026-06-10: `POST /reconcile` now resets rows to Pending and 409s while Running.)
 
 ## Resume-completion race (`EMaigrator.Workers`)
 
