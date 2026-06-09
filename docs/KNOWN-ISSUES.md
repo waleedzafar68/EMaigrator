@@ -25,6 +25,30 @@ Two live-only defects (both shipped green because WireMock validates neither the
    dropped it. Well-known folders survived only via name aliases. **Fix:** `GraphMailFolderNode.BuildFromGraph`
    treats a parent that is absent from the complete fetched set as the root.
 
+## Live Gmail→Exchange validation findings (2026-06-09) — tracked follow-ups
+
+A full live reconcile (`alice.chong@bellfield`, Google Workspace → M365, ~650 labels, **320 messages copied,
+0 write failures**) confirmed the write fix end-to-end and surfaced these. None block the write path:
+
+- **Imported messages are drafts — ACCEPTED for v1.** Every MIME-imported message is `isDraft=true`
+  (confirmed 200/200 in one folder); Graph offers no supported way to clear the flag after creation.
+  Read/unread IS preserved (`isRead`). Decision: ship as-is. The FTS export→edit-flags→reimport workaround
+  (Glen Scales) is the documented path if true non-draft fidelity is later required.
+- **Gmail labels map to separate Exchange folders.** A message with multiple labels (e.g. `INBOX` +
+  `IMPORTANT` + `CATEGORY_*`) is copied into EACH corresponding folder — the reconcile diffs per live-dest
+  folder — so the same message lands in several folders. Expected given the label→folder mapping; revisit
+  if single-folder placement is desired.
+- **Reconcile is ~O(folders²) on the folder list.** Each folder scanned re-fetches the whole mailbox folder
+  tree (`FetchFolderNodesAsync`), so a 650-folder mailbox issues ~650 full folder-list fetches. Correct but
+  slow; cache the tree per reconcile run.
+- **Reconcile progress + job status don't surface in the UI.** `ReconcileConsumer` publishes no
+  `MigrationProgressEvent` and seeds no `Pending` total, so the wizard Run view sits at `0/0`; it writes the
+  migration's counts only at completion (`SetTerminalAsync`), and the parent `jobs.Status` stays `Running`
+  (only `mailbox_migrations.Status` goes terminal — `Partial` when stale failed rows exist). Wire per-folder
+  progress events + a job-status finalizer.
+- **EF command logging runs at Information in Production**, flooding worker logs with every SQL statement
+  during a run; lower the `Microsoft.EntityFrameworkCore.Database.Command` category level.
+
 ## Resume-completion race (`EMaigrator.Workers`)
 
 **Severity:** low — misleading status only. **No data loss, no duplication.**
