@@ -31,8 +31,8 @@
     <!-- Redis -->
     <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <!-- Messaging (MassTransit 8.x = free Apache-2.0; 9.x is commercial) -->
-    <PackageVersion Include="MassTransit" Version="8.5.9" />
-    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.9" />
+    <PackageVersion Include="MassTransit" Version="9.1.2" />
+    <PackageVersion Include="MassTransit.RabbitMQ" Version="9.1.2" />
     <!-- Plan 07 (Workers): in-memory test harness for the consumer unit tests (kept on the 8.5.9 line). -->
     <PackageVersion Include="MassTransit.TestFramework" Version="8.5.9" />
     <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />
