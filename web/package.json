@@ -14,7 +14,7 @@
     "scan:bundle": "node scripts/scan-bundle.mjs"
   },
   "dependencies": {
-    "@microsoft/signalr": "^8.0.17",
+    "@microsoft/signalr": "^10.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
