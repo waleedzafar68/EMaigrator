@@ -27,7 +27,7 @@ Two live-only defects (both shipped green because WireMock validates neither the
 
 ## Live Gmail→Exchange validation findings (2026-06-09) — tracked follow-ups
 
-A full live reconcile (`alice.chong@bellfield`, Google Workspace → M365, ~650 labels, **320 messages copied,
+A full live reconcile (a test mailbox, Google Workspace → M365, ~650 labels, **320 messages copied,
 0 write failures**) confirmed the write fix end-to-end and surfaced these. None block the write path:
 
 - **Imported messages are drafts — ACCEPTED for v1.** Every MIME-imported message is `isDraft=true`
