@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, EyeOff, Mailbox } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { ApiError } from "../api/client";
 import { login, register } from "../api/auth";
 import { Button } from "../components/ui/button";
@@ -63,9 +63,7 @@ export function Login() {
       <Card className="w-full max-w-[400px]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-[length:var(--fs-h2)]">
-            <span className="flex h-8 w-8 items-center justify-center rounded-md bg-accent text-accent-fg">
-              <Mailbox size={18} aria-hidden />
-            </span>
+            <img src="/logo-tile.svg" alt="" width={32} height={32} className="h-8 w-8" />
             EMaigrator
           </CardTitle>
           <CardDescription>

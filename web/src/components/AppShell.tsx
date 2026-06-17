@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { LayoutDashboard, LogOut, Mailbox, Plus } from "lucide-react";
+import { LayoutDashboard, LogOut, Plus } from "lucide-react";
 import { logout } from "../api/auth";
 import { buttonVariants } from "./ui/button";
 import { ThemeToggle } from "./ThemeToggle";
@@ -24,9 +24,7 @@ export function AppShell() {
     <div className="flex min-h-screen bg-bg text-fg">
       <aside className="flex w-[230px] shrink-0 flex-col border-r border-border bg-surface p-4" aria-label="Primary">
         <div className="mb-6 flex items-center gap-2 px-1 font-semibold tracking-tight">
-          <span className="flex h-7 w-7 items-center justify-center rounded-md bg-accent text-accent-fg">
-            <Mailbox size={16} aria-hidden />
-          </span>
+          <img src="/logo-tile.svg" alt="" width={28} height={28} className="h-7 w-7" />
           EMaigrator
         </div>
         <nav className="space-y-1">
