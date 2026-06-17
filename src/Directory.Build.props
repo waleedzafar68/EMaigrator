@@ -12,6 +12,14 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Package/assembly metadata. The hosted layer consumes this engine as a
+         NuGet package, so every packable project carries the OSS license. -->
+    <Authors>Waleed Zafar</Authors>
+    <Company>EMaigrator</Company>
+    <Copyright>Copyright 2026 Waleed Zafar</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/waleedzafar68/EMaigrator</PackageProjectUrl>
   </PropertyGroup>
 
   <!-- Test projects use xUnit's Method_Scenario_Expectation naming; CA1707 (no underscores

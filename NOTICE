@@ -1,0 +1,22 @@
+EMaigrator
+Copyright 2026 Waleed Zafar
+
+This product is the open-source core of EMaigrator and is licensed under the
+Apache License, Version 2.0 (see the LICENSE file).
+
+------------------------------------------------------------------------------
+Third-party components with notable licensing terms
+------------------------------------------------------------------------------
+
+QuestPDF (https://www.questpdf.com)
+  Used to render the downloadable PDF migration report. QuestPDF is distributed
+  under the QuestPDF Community License. It is free of charge for individuals and
+  for organizations below QuestPDF's published annual-revenue threshold; larger
+  commercial users must obtain a paid QuestPDF Professional/Enterprise license.
+  This is NOT a plain MIT license. Anyone self-hosting or commercially deploying
+  EMaigrator is responsible for their own QuestPDF license compliance.
+  See https://www.questpdf.com/license/ for current terms.
+
+All other dependencies are consumed under their own permissive open-source
+licenses (see the NuGet package metadata under /src and the npm manifest under
+/web for the authoritative per-package license list).
