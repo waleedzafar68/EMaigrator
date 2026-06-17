@@ -49,3 +49,6 @@ playwright-report/
 deploy/docker-compose.local.yml
 
 .superpowers/
+
+# ---- Brand-source kit (not shipped in the repo) ----
+logo_kit/
