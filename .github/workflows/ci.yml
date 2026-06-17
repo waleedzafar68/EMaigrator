@@ -9,8 +9,13 @@ permissions:
   contents: read
 
 jobs:
-  dotnet:
+  # Fast, hermetic .NET tests — the unit/architecture/WireMock suites that need no Docker.
+  # The Docker-backed suites (EMaigrator.Api.Tests + the four *.IntegrationTests projects) are a
+  # local/self-host gate run with Docker Desktop up; they are intentionally NOT run here because
+  # spinning Testcontainers on the hosted runner without a guard previously hung the job to the 6h cap.
+  dotnet-unit:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -18,16 +23,42 @@ jobs:
           dotnet-version: "10.0.x"
       - name: Restore
         run: dotnet restore src/EMaigrator.sln
-      - name: Build
+      - name: Build (whole solution — verifies everything compiles)
         run: dotnet build src/EMaigrator.sln -c Release --no-restore
-      - name: Test with coverage
-        run: dotnet test src/EMaigrator.sln -c Release --no-build --collect:"XPlat Code Coverage" --results-directory ./TestResults
-      - name: Vulnerability audit (fails on any finding)
+      - name: Unit tests (Docker-free projects) with coverage
+        run: |
+          set -e
+          for proj in \
+            src/EMaigrator.Core.Tests \
+            src/EMaigrator.Infrastructure.Tests \
+            src/EMaigrator.Connectors.Imap.Tests \
+            src/EMaigrator.Connectors.Gmail.Tests \
+            src/EMaigrator.Connectors.Graph.Tests \
+            src/EMaigrator.Workers.Tests \
+            src/EMaigrator.Cli.Tests ; do
+            echo "::group::test $proj"
+            dotnet test "$proj" -c Release --no-build \
+              --collect:"XPlat Code Coverage" --results-directory ./TestResults
+            echo "::endgroup::"
+          done
+
+  # Supply-chain gate in its own job so it always runs (previously it was ordered after the test
+  # step and never executed once tests failed).
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: NuGet vulnerability audit (fails on any finding)
         shell: pwsh
         run: ./scripts/check-vulnerable.ps1
 
   web:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: web
@@ -39,5 +70,15 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npm run build
-      - run: npm run test -- --run
+      # NOTE: `npm run lint` is intentionally not wired here — eslint is not yet a dependency of the web
+      # project (the `lint` script is a stub). Add eslint + a flat config, then re-enable this gate.
+      - name: Build
+        run: npm run build
+      - name: Bundle secret-scan (security gate)
+        run: npm run scan:bundle
+      - name: Unit tests
+        run: npm run test -- --run
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: E2E (Playwright vs MSW mock)
+        run: npm run e2e
