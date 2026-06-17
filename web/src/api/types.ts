@@ -105,16 +105,6 @@ export interface MigrationEstimateDto {
   totalBytes: number;
   estimatedDurationSeconds: number;
 }
-// UsageDto is a hosted-layer view-model projection (hosted billing §14). The OSS API's
-// GET /migrations/{id}/preflight serializes { issues, estimate, scanning } — usage is intentionally
-// ABSENT in OSS, so it stays optional here and renders gracefully when missing. camelCase; do not
-// invent fields.
-export interface UsageDto {
-  used: number;
-  quota: number;
-  overCapMailboxes: number;
-  capGb: number;
-}
 export interface PreflightPlanDto {
   issues: PreflightIssueDto[];
   estimate: MigrationEstimateDto;
@@ -122,7 +112,6 @@ export interface PreflightPlanDto {
   // (Job.Status == PreFlight and no stored plan yet) → issues/estimate are empty/zeroed; false once
   // the stored plan exists. Poll GET /preflight while this is true. (CONTRACTS §6 async-preflight)
   scanning: boolean;
-  usage?: UsageDto | null;   // hosted-only: never sent by the OSS preflight endpoint
 }
 export interface ApproveRequest { resolutions: Record<string, RemediationAction>; }
 // Mirrors BOTH the API's REST NeedsDecisionItemDto and SignalR NeedsDecisionDto: { issueType, detail,

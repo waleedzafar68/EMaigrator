@@ -61,9 +61,7 @@ export function StepReview() {
     );
   }
 
-  const overQuota = plan.usage ? plan.usage.used + plan.estimate.mailboxCount > plan.usage.quota : false;
-  const overCap = plan.usage ? plan.usage.overCapMailboxes > 0 : false;
-  const blocked = overQuota || overCap || plan.issues.some((i) => i.severity === "Blocker");
+  const blocked = plan.issues.some((i) => i.severity === "Blocker");
   const e = plan.estimate;
 
   async function onApprove() {
@@ -71,7 +69,7 @@ export function StepReview() {
     navigate(`/migrations/${migration.id}/run`);
   }
 
-  if (plan.issues.length === 0 && !plan.usage) {
+  if (plan.issues.length === 0) {
     return (
       <div className="space-y-4 rounded-[var(--radius)] border border-success-line bg-success-bg p-[var(--card-pad)]">
         <h2 className="flex items-center gap-2 text-[length:var(--fs-h1)] font-semibold">
@@ -114,12 +112,6 @@ export function StepReview() {
       <p className="mono inline-flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
         Summary: {e.mailboxCount} mailboxes · {e.messageCount.toLocaleString()} msgs · {formatDuration(e.estimatedDurationSeconds)}
       </p>
-      {plan.usage ? (
-        <p className={overQuota || overCap ? "text-error" : "text-fg-muted"}>
-          Needs {e.mailboxCount} mailboxes (you have {plan.usage.quota - plan.usage.used} left)
-          {overCap ? ` · ${plan.usage.overCapMailboxes} mailboxes exceed the ${plan.usage.capGb} GB cap → upgrade to proceed` : ""}
-        </p>
-      ) : null}
       <Button type="button" disabled={blocked} onClick={() => void onApprove()}>
         Approve plan &amp; start
       </Button>

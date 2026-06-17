@@ -7,12 +7,16 @@ import * as api from "../api/migrations";
 const nav = vi.fn();
 vi.mock("react-router-dom", () => ({ useNavigate: () => nav, useOutletContext: () => ({ migration: { id: "m1" } }) }));
 
-const cleanPlan = { scanning: false, issues: [], estimate: { mailboxCount: 1, folderCount: 14, messageCount: 3201, totalBytes: 262144000, estimatedDurationSeconds: 720 }, usage: null };
+const cleanPlan = { scanning: false, issues: [], estimate: { mailboxCount: 1, folderCount: 14, messageCount: 3201, totalBytes: 262144000, estimatedDurationSeconds: 720 } };
 const issuePlan = {
   scanning: false,
   issues: [{ issueType: "FolderDepth", affectedPaths: ["/a/b/c/d/e"], recommendedAction: "FlattenFolder", options: ["FlattenFolder", "RenameFolder", "SkipMessage"], severity: "Warning", description: "12 folders exceed Outlook's depth" }],
   estimate: { mailboxCount: 218, folderCount: 900, messageCount: 1200000, totalBytes: 0, estimatedDurationSeconds: 7800 },
-  usage: { used: 188, quota: 200, overCapMailboxes: 2, capGb: 50 },
+};
+const blockerPlan = {
+  scanning: false,
+  issues: [{ issueType: "FolderDepth", affectedPaths: ["/a/b/c/d/e"], recommendedAction: "FlattenFolder", options: ["FlattenFolder", "RenameFolder", "SkipMessage"], severity: "Blocker", description: "a blocker that must be fixed" }],
+  estimate: { mailboxCount: 218, folderCount: 900, messageCount: 1200000, totalBytes: 0, estimatedDurationSeconds: 7800 },
 };
 
 describe("StepReview", () => {
@@ -37,7 +41,7 @@ describe("StepReview", () => {
 
   it("shows the Reviewing state while scanning, then renders the plan once the scan finishes", async () => {
     // First poll: the background scan is still running (scanning:true, empty estimate). Second poll: done.
-    const scanningPlan = { scanning: true, issues: [], estimate: { mailboxCount: 0, folderCount: 0, messageCount: 0, totalBytes: 0, estimatedDurationSeconds: 0 }, usage: null };
+    const scanningPlan = { scanning: true, issues: [], estimate: { mailboxCount: 0, folderCount: 0, messageCount: 0, totalBytes: 0, estimatedDurationSeconds: 0 } };
     vi.spyOn(api, "getPreflight")
       .mockResolvedValueOnce(scanningPlan as never)
       .mockResolvedValue(cleanPlan as never);
@@ -55,17 +59,23 @@ describe("StepReview", () => {
     expect(screen.queryByRole("status", { name: /reviewing your mailboxes/i })).not.toBeInTheDocument();
   });
 
-  it("shows bulk resolution dropdowns and blocks Start when over the cap", async () => {
+  it("shows bulk resolution dropdowns and keeps Start enabled for non-blocking issues", async () => {
     vi.spyOn(api, "getPreflight").mockResolvedValue(issuePlan as never);
     render(<StepReview />);
     expect(await screen.findByText(/exceed outlook's depth/i)).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /resolution for folderdepth/i })).toBeInTheDocument();
-    expect(screen.getByText(/exceed the 50 GB/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /approve plan & start/i })).toBeEnabled();
+  });
+
+  it("blocks Start when a Blocker-severity issue is present", async () => {
+    vi.spyOn(api, "getPreflight").mockResolvedValue(blockerPlan as never);
+    render(<StepReview />);
+    expect(await screen.findByText(/a blocker that must be fixed/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /approve plan & start/i })).toBeDisabled();
   });
 
-  it("approves with the chosen resolutions when within quota", async () => {
-    vi.spyOn(api, "getPreflight").mockResolvedValue({ ...issuePlan, usage: { used: 10, quota: 500, overCapMailboxes: 0, capGb: 50 } } as never);
+  it("approves with the chosen resolutions", async () => {
+    vi.spyOn(api, "getPreflight").mockResolvedValue(issuePlan as never);
     const approve = vi.spyOn(api, "approve").mockResolvedValue({} as never);
     render(<StepReview />);
     await screen.findByText(/exceed outlook's depth/i);

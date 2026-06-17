@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { Dashboard, UsageWidget } from "./Dashboard";
+import { Dashboard } from "./Dashboard";
 import * as api from "../api/migrations";
 import { setDefaultHubFactory } from "../api/signalr";
 
@@ -97,26 +97,5 @@ describe("Dashboard live per-row updates", () => {
     hub.fire("Progress", { migrationId: "other", migrated: 1, total: 218, currentFolder: null, msgPerMin: 0, status: "Running" });
     // Unchanged — still 58%.
     expect(screen.getByText("58%")).toBeInTheDocument();
-  });
-});
-
-describe("UsageWidget", () => {
-  it("renders used/quota with a bar and Upgrade link when usage is present", () => {
-    render(
-      <MemoryRouter>
-        <UsageWidget usage={{ used: 128, quota: 200, overCapMailboxes: 0, capGb: 50 }} />
-      </MemoryRouter>,
-    );
-    expect(screen.getByText(/128 \/ 200 mailboxes this month/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /upgrade/i })).toBeInTheDocument();
-  });
-
-  it("renders nothing when there is no usage (never a fabricated demo bar)", () => {
-    const { container } = render(
-      <MemoryRouter>
-        <UsageWidget usage={null} />
-      </MemoryRouter>,
-    );
-    expect(container).toBeEmptyDOMElement();
   });
 });

@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, LayoutGrid, List } from "lucide-react";
 import { listMigrations } from "../api/migrations";
 import { MigrationsHubClient } from "../api/signalr";
-import type { JobStatus, MigrationDto, UsageDto } from "../api/types";
+import type { JobStatus, MigrationDto } from "../api/types";
 import { type ChipStatus, jobStatusToChip, StatusChip } from "../components/StatusChip";
 import { ProviderRoute } from "../components/ProviderRoute";
 import { ProgressBar } from "../components/ProgressBar";
@@ -69,7 +69,6 @@ function Welcome() {
 
 export function Dashboard() {
   const [items, setItems] = useState<MigrationDto[] | null>(null);
-  const [usage] = useState<UsageDto | null>(null);
   const [layout, setLayout] = useState<Layout>(
     (localStorage.getItem("em-dash-layout") as Layout) ?? "cards",
   );
@@ -150,7 +149,6 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <UsageWidget usage={usage} />
       <div className="flex items-center justify-between">
         <p className="text-sm text-fg-muted">
           {items.length} migration{items.length === 1 ? "" : "s"}
@@ -240,26 +238,6 @@ export function Dashboard() {
           })}
         </ul>
       )}
-    </div>
-  );
-}
-
-export function UsageWidget({ usage }: { usage: UsageDto | null }) {
-  if (!usage) return null;
-  const usagePct =
-    usage.quota > 0 ? Math.min(100, Math.round((usage.used / usage.quota) * 100)) : 0;
-  return (
-    <div className="flex items-center gap-3 rounded-[var(--radius)] border border-border p-3 text-sm">
-      <span className="text-fg-muted">Usage</span>
-      <div className="h-2 w-40 overflow-hidden rounded-full bg-surface-2">
-        <div className="h-full bg-accent" style={{ width: `${usagePct}%` }} />
-      </div>
-      <span className="mono">
-        {usage.used} / {usage.quota} mailboxes this month
-      </span>
-      <Link to="/upgrade" className="ml-auto text-accent">
-        Upgrade
-      </Link>
     </div>
   );
 }
