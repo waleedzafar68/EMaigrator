@@ -31,18 +31,20 @@ cp deploy/.env.example deploy/.env
 #    SECRET_MASTER_KEY (openssl rand -base64 32), and JWT_SIGNING_KEY.
 
 # 2. Bring up the whole stack (Postgres + RabbitMQ + Redis + API + workers + web UI).
-docker compose -f deploy/docker-compose.yml up -d
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d
 
 # 3. Open the app.
-#    http://localhost:3000
+#    http://localhost:3000   (or http://localhost:${WEB_PORT})
 ```
 
 The nginx `web` service serves the built SPA and reverse-proxies `/api` + `/hubs` to the API, so the app is
-a single same-origin URL. To stop: `docker compose -f deploy/docker-compose.yml down`.
+a single same-origin URL. To stop: `docker compose -f deploy/docker-compose.yml down`. (Without a
+`deploy/.env`, plain `docker compose -f deploy/docker-compose.yml up -d` runs with the built-in defaults.)
 
-> If host ports clash with other local stacks, create a gitignored `deploy/docker-compose.local.yml` that
-> remaps the published ports and add `-f deploy/docker-compose.local.yml` to the commands. Internal
-> service-to-service traffic uses container DNS and is unaffected.
+> The compose file is **fully env-parameterized** — every published host port, image tag, secret, and the
+> restart policy is an env var with a default, so no override files are needed. If a port clashes with
+> another local stack, set the matching `*_PORT` in `deploy/.env` (e.g. `POSTGRES_PORT=5434`,
+> `WEB_PORT=3002`) and re-run. Internal service-to-service traffic uses container DNS and is unaffected.
 
 ## Development
 

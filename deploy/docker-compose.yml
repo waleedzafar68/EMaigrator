@@ -1,14 +1,23 @@
-name: emaigrator
+name: ${COMPOSE_PROJECT_NAME:-emaigrator}
+
+# Single, fully-parameterized stack: Postgres + RabbitMQ + Redis + API + workers + web UI.
+# Everything an environment needs to change — published host ports, image tags, credentials, secrets,
+# restart policy — is an env var with a safe default, so NO -f override files are needed. To customise,
+# copy deploy/.env.example to deploy/.env and edit, then:
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+# (Compose also auto-loads deploy/.env when you run from the deploy/ directory.) Internal service-to-service
+# traffic uses container DNS (postgres:5432, redis:6379, rabbitmq:5672) and is unaffected by host-port remaps.
 
 services:
   postgres:
-    image: postgres:17
+    image: ${POSTGRES_IMAGE:-postgres:17}
+    restart: ${RESTART_POLICY:-unless-stopped}
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-emaigrator}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emaigrator}
       POSTGRES_DB: ${POSTGRES_DB:-emaigrator}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -18,13 +27,14 @@ services:
       retries: 10
 
   rabbitmq:
-    image: rabbitmq:4-management
+    image: ${RABBITMQ_IMAGE:-rabbitmq:4-management}
+    restart: ${RESTART_POLICY:-unless-stopped}
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-emaigrator}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-emaigrator}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     volumes:
       - rabbitdata:/var/lib/rabbitmq
     healthcheck:
@@ -34,10 +44,11 @@ services:
       retries: 10
 
   redis:
-    image: redis:8
+    image: ${REDIS_IMAGE:-redis:8}
+    restart: ${RESTART_POLICY:-unless-stopped}
     command: ["redis-server", "--appendonly", "yes"]
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -50,27 +61,28 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
+    restart: ${RESTART_POLICY:-unless-stopped}
     # Keys map to what the app binds: AddInfrastructure reads the `Infrastructure:` section; the API's
     # own MassTransit bus reads `Infrastructure:RabbitMqConnectionString`; the SignalR backplane reads
-    # `Redis:Configuration`. `__` is the .NET config section separator.
+    # `Redis:Configuration`. `__` is the .NET config section separator. The host:port values below are the
+    # in-network CONTAINER ports (service DNS) and are deliberately NOT the published *_PORT host vars.
     environment:
       ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
       Infrastructure__PostgresConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-emaigrator};Username=${POSTGRES_USER:-emaigrator};Password=${POSTGRES_PASSWORD:-emaigrator}
       Infrastructure__RedisConnectionString: redis:6379
       Infrastructure__RabbitMqConnectionString: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
       Redis__Configuration: redis:6379
-      # Dev defaults — OVERRIDE IN PRODUCTION. The secret master key MUST be identical on api + workers
-      # (the api wraps provider credentials; the workers unwrap them). CORS origins for a browser SPA
-      # must be supplied via Cors__AllowedOrigins__0 etc.
-      Infrastructure__SecretStore__Mode: LocalKey
+      # Dev defaults — OVERRIDE IN PRODUCTION via deploy/.env. The secret master key MUST be identical on
+      # api + workers (the api wraps provider credentials; the workers unwrap them).
+      Infrastructure__SecretStore__Mode: ${SECRET_STORE_MODE:-LocalKey}
       Infrastructure__SecretStore__KeyRef: ${SECRET_MASTER_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
       Jwt__SigningKey: ${JWT_SIGNING_KEY:-emaigrator-dev-signing-key-change-me-in-production-0123456789}
       # SPA origin allowed by the CORS policy (AllowCredentials → explicit origins, no wildcard). The
       # in-compose `web` service proxies same-origin, but this lets a cross-origin SPA (e.g. the Vite dev
-      # server) negotiate the SignalR hub without a "CORS policy execution failed" rejection.
-      Cors__AllowedOrigins__0: ${WEB_ORIGIN:-http://localhost:3000}
+      # server) negotiate the SignalR hub. Defaults to the published web port.
+      Cors__AllowedOrigins__0: ${WEB_ORIGIN:-http://localhost:${WEB_PORT:-3000}}
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -83,6 +95,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.workers
+    restart: ${RESTART_POLICY:-unless-stopped}
     # AddInfrastructure reads the `Infrastructure:` section, but the Workers bus reads its broker from
     # `ConnectionStrings:RabbitMq` (a different key than the API's bus). The secret master key MUST match
     # the api service so wrapped provider credentials can be unwrapped here.
@@ -92,7 +105,7 @@ services:
       Infrastructure__RedisConnectionString: redis:6379
       Infrastructure__RabbitMqConnectionString: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
       ConnectionStrings__RabbitMq: amqp://${RABBITMQ_USER:-emaigrator}:${RABBITMQ_PASSWORD:-emaigrator}@rabbitmq:5672
-      Infrastructure__SecretStore__Mode: LocalKey
+      Infrastructure__SecretStore__Mode: ${SECRET_STORE_MODE:-LocalKey}
       Infrastructure__SecretStore__KeyRef: ${SECRET_MASTER_KEY:-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
     depends_on:
       postgres:
@@ -106,6 +119,7 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+    restart: ${RESTART_POLICY:-unless-stopped}
     # nginx serves the built SPA and reverse-proxies /api + /hubs to the api service, so the browser
     # talks to a single origin (no CORS/CSP/cross-origin-cookie issues). Open the app at this port.
     ports:

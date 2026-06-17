@@ -110,8 +110,9 @@ pwsh -NoProfile -File scripts/check-vulnerable.ps1   # .NET supply-chain audit
 ```
 
 Integration tests and `docker compose` require Docker Desktop running. Windows shell is PowerShell (the
-Bash tool is also available). If host ports clash with other local stacks, overlay a gitignored
-`deploy/docker-compose.local.yml` to remap them — internal service-to-service traffic uses container DNS and is unaffected.
+Bash tool is also available). The compose file is fully env-parameterized (ports, images, secrets, restart
+policy) — if host ports clash with other local stacks, set the matching `*_PORT` vars in a gitignored
+`deploy/.env` (no override file needed); internal service-to-service traffic uses container DNS and is unaffected.
 
 ## Repo layout
 
