@@ -74,7 +74,7 @@ queue ──┼── worker #2 ──┼──►  (each: prefetch=K concurrent
 
 - On **429 / throttle / `Retry-After`**: the account's **Redis token bucket** is **drained/paused for the indicated duration** — *only that account's* work pauses; every other account keeps flowing.
 - Backoff is **adaptive**: repeated throttling lowers the bucket's effective refill rate (multiplicative decrease); sustained success lets it recover toward the cap (additive increase). This auto-tunes to whatever the provider is actually allowing right now.
-- This is the signal behind the UI's **"Slowing to respect provider limits"** chip (`UX-Guide.md §6.5`) and the **throttling buffer** baked into the ETA (`UX-Guide.md §6.4`).
+- This is the signal behind the UI's **"Slowing to respect provider limits"** chip and the **throttling buffer** baked into the ETA.
 
 ---
 
@@ -83,7 +83,7 @@ queue ──┼── worker #2 ──┼──►  (each: prefetch=K concurrent
 - Each message copy is **checkpointed to the ledger** as it completes (or per small batch).
 - **Resume = scan ledger for not-done items in the migration, re-enqueue them.** Works identically whether the interruption was a crash, a deploy, a Pause, or a rate-limit abort.
 - Because checkpoints are per-message and operations are idempotent, **at-least-once delivery is safe** — a redelivered batch re-checks the ledger and skips already-copied messages. No exactly-once machinery needed.
-- **Pause/Resume** (`UX-Guide.md §6.5`) = stop pulling new batches for the migration + let in-flight batches drain → resume re-enqueues remaining ledger items.
+- **Pause/Resume** = stop pulling new batches for the migration + let in-flight batches drain → resume re-enqueues remaining ledger items.
 
 ---
 

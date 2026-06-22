@@ -21,7 +21,6 @@ fallback — live in a separate layer and must **not** land here (see convention
 |---|---|
 | `DESIGN.md` | Architecture, data model, security, stack, scope, decision log |
 | `ARCHITECTURE.md` | Execution & parallelism (queue, workers, Redis token buckets) |
-| `UX-Guide.md` | Operator flows, screens, states, copy |
 | `FRONTEND-DESIGN.md` | Visual system (modern-technical, teal/slate, light+dark, SPA) |
 | `docs/CONTRIBUTING.md` | Build strictness, DI composition seams, CI scope, Windows ops — first-touch mechanics |
 | `docs/connectors/authoring-a-connector.md` | The repeatable recipe for a new provider connector + secret/settings key table |

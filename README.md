@@ -73,7 +73,6 @@ and audit live in PostgreSQL; the SPA shows live progress over a SignalR hub. Fu
 |---|---|
 | [`DESIGN.md`](DESIGN.md) | Architecture, data model, security, stack, scope, decisions |
 | [`ARCHITECTURE.md`](ARCHITECTURE.md) | Execution & parallelism (queue, workers, token buckets) |
-| [`UX-Guide.md`](UX-Guide.md) | Operator flows, screens, states, copy |
 | [`FRONTEND-DESIGN.md`](FRONTEND-DESIGN.md) | Visual design system |
 | [`docs/connectors/authoring-a-connector.md`](docs/connectors/authoring-a-connector.md) | How to add a new provider connector |
 | [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) | Tracked non-blocking defects |

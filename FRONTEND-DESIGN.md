@@ -2,7 +2,7 @@
 
 > **Status:** Locked. Owns *visual identity* — color, type, spacing, components, motion, theming.
 > **Audience:** Claude / agents using the `frontend-design` skill, and frontend engineers.
-> **Pairs with:** `UX-Guide.md` (flows & interactions — this doc does NOT repeat them) and `DESIGN.md §13` (Vite + React + TS + SignalR).
+> **Pairs with:** `DESIGN.md §13` (Vite + React + TS + SignalR).
 > **Direction (chosen):** **Modern technical · teal/emerald accent · light + dark.**
 
 ---
@@ -16,7 +16,7 @@
 - **Single-mailbox happy path** (the "old man") → the *same* design system rendered at **low density**: larger type, more whitespace, one primary action per screen, plain language, reassurance visible. It must **never look like a monitoring dashboard.**
 - **Batch / admin / logs** (the MSP) → **full data density**: compact tables, monospace numerics, dense grids, more on screen.
 
-The density toggles in `UX-Guide.md` (dashboard cards⇄list, run-view light⇄dense) are the runtime expression of this. **Default low-density; let power users opt into density.** This is how a technical look stays non-intimidating.
+The density toggles (dashboard cards⇄list, run-view light⇄dense) are the runtime expression of this. **Default low-density; let power users opt into density.** This is how a technical look stays non-intimidating.
 
 ---
 
@@ -25,14 +25,14 @@ The density toggles in `UX-Guide.md` (dashboard cards⇄list, run-view light⇄d
 ### Runtime context (shapes every design choice)
 - **This is a client-rendered SPA: Vite + React 19 + TypeScript.** It is a **pure client** of a separate **ASP.NET Core REST API** (C# backend) — **no Next.js, no SSR, no server components.**
 - **Implications for design:**
-  - **All data is fetched client-side** → every data surface needs a **loading/skeleton state** (`UX-Guide.md §8.1`); there is no server-rendered first paint.
+  - **All data is fetched client-side** → every data surface needs a **loading/skeleton state**; there is no server-rendered first paint.
   - **Live data (progress, status) arrives over SignalR** (WebSocket) → design for streaming updates + a **"reconnecting…"** state, not request/response refreshes.
   - **Client-side routing** (e.g., React Router) for the dashboard ↔ wizard navigation.
   - Served as **static assets** (the API or a tiny container serves the bundle) → keep bundle size reasonable; lazy-load heavy/dense views.
 
 ### Stack
 - **Tailwind CSS** — utility styling + design tokens (CSS variables for theming).
-- **shadcn/ui** (Radix primitives) — accessible-by-default components (focus management, ARIA, keyboard nav) → directly satisfies the **WCAG AA** requirement (`UX-Guide.md §8.4`). Components are copied in and themeable, no black-box dependency.
+- **shadcn/ui** (Radix primitives) — accessible-by-default components (focus management, ARIA, keyboard nav) → directly satisfies the **WCAG AA** requirement. Components are copied in and themeable, no black-box dependency.
 - **Lucide** — line-icon set (pairs with shadcn; clean, technical).
 - **Recharts** (or similar) for the throughput/progress visualizations on dense run views.
 
@@ -110,7 +110,7 @@ A modern-technical pairing: a clean geometric sans for UI, a monospace for **all
 
 | EMaigrator element | shadcn / pattern | Notes |
 |---|---|---|
-| Wizard stepper | custom + `Progress` | Gated, back-allowed (`UX-Guide.md §4`) |
+| Wizard stepper | custom + `Progress` | Gated, back-allowed |
 | Migration card / row | `Card` / `Table` | Card⇄list density toggle |
 | Status chip | `Badge` | **Icon + label**, semantic color |
 | Connect forms | `Form` + `Input` + `Select` | Provider/region selects; inline guide |
@@ -127,7 +127,7 @@ A modern-technical pairing: a clean geometric sans for UI, a monospace for **all
 
 ## 7. Key Visual Patterns
 
-**Error pattern (visual form of `UX-Guide.md §8.2`):** plain-language `Alert` (semantic color + icon + "what to do" link), with a `Collapsible` **"Technical details"** revealing **mono-formatted** raw error + trace ID.
+**Error pattern:** plain-language `Alert` (semantic color + icon + "what to do" link), with a `Collapsible` **"Technical details"** revealing **mono-formatted** raw error + trace ID.
 
 ```
 ⚠  We couldn't sign in to WorkMail.            ← Alert, amber, body sans
@@ -157,7 +157,7 @@ A modern-technical pairing: a clean geometric sans for UI, a monospace for **all
 - **WCAG AA:** all text/icon pairs meet contrast in *both* themes (verify teal accent on both `--bg`s — `teal-600` on white and `teal-400` on slate-950 both pass AA for UI text/large text).
 - **Status never by color alone** — icon + label always (color-blind safe).
 - **Full keyboard nav + focus-visible rings** (shadcn/Radix default; keep them).
-- **Generous hit targets** (≥40px) on the low-density individual path — aging-eyes/shaky-hands friendly (`UX-Guide.md §8.4`).
+- **Generous hit targets** (≥40px) on the low-density individual path — aging-eyes/shaky-hands friendly.
 
 ---
 
