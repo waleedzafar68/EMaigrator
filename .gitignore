@@ -52,3 +52,6 @@ deploy/docker-compose.local.yml
 
 # ---- Brand-source kit (not shipped in the repo) ----
 logo_kit/
+
+# ---- Local tool cache (e.g. the gitleaks binary fetched by scripts/scan-secrets.ps1) ----
+.tools/

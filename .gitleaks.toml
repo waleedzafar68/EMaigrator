@@ -1,0 +1,31 @@
+# gitleaks configuration for EMaigrator.
+#
+# Extends gitleaks' default ruleset and allowlists three KNOWN, verified test
+# fixtures (full-history audit, 2026-06) that are NOT real secrets. Keep this
+# list surgical: only add entries that are provably non-secret test data, and
+# always say why. Scan with: pwsh -NoProfile -File scripts/scan-secrets.ps1
+
+title = "EMaigrator gitleaks config"
+
+[extend]
+useDefault = true
+
+# 1. Gmail offline-test service-account fixture: a throwaway RSA key generated
+#    solely for unit tests, documented in-file as having no access to any real
+#    Google project. The whole file is a fixture, so allowlist it by path.
+[[allowlists]]
+description = "Gmail test service-account fixture (throwaway RSA key, no real project)"
+paths = [
+  '''src/EMaigrator\.Connectors\.Gmail\.Tests/TestServiceAccount\.cs''',
+]
+
+# 2. Two hardcoded test literals, allowlisted by exact value (not whole-file):
+#    - "KMS-CANARY-771a": a ciphertext canary, asserted NOT to appear in the blob.
+#    - "Sup3rSecret-PW-XYZ-WRONG": a deliberately-wrong password an auth test rejects.
+[[allowlists]]
+description = "Ciphertext canary + deliberately-wrong test password (literal fixtures)"
+regexTarget = "match"
+regexes = [
+  '''KMS-CANARY-771a''',
+  '''Sup3rSecret-PW-XYZ-WRONG''',
+]
