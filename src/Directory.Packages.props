@@ -97,6 +97,17 @@
     <PackageVersion Include="Xunit.SkippableFact" Version="1.5.23" />
   </ItemGroup>
 
+  <!-- Supply-chain transitive pins (CentralPackageTransitivePinningEnabled). These flow in transitively
+       — MessagePack via the SignalR/MassTransit protocols, Microsoft.OpenApi via Microsoft.AspNetCore.OpenApi
+       — and picked up new advisories that fail the NU1902/NU1903 audit-as-error gate at restore. Pinned to
+       the first patched in-major release so restore stays audit-clean without a major-version bump. -->
+  <ItemGroup>
+    <!-- GHSA-hv8m-jj95-wg3x + GHSA-vh6j-jc39-fggf (high) and the moderate batch: 2.x patched in 2.5.301. -->
+    <PackageVersion Include="MessagePack" Version="2.5.302" />
+    <!-- GHSA-v5pm-xwqc-g5wc (high; circular-schema parse termination): 2.x patched in 2.7.5. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+  </ItemGroup>
+
   <!-- Plan 06 (Connector: Gmail). Google.Apis.Gmail.v1 is the Gmail v1 SDK; Google.Apis.Auth supplies
        GoogleCredential + service-account domain-wide-delegation. Both pull the Google.Apis(.Core) +
        Newtonsoft.Json stack transitively (auto-pinned via CentralPackageTransitivePinningEnabled).
