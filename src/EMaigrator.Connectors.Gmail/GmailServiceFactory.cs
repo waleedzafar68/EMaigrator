@@ -25,10 +25,17 @@ public static class GmailServiceFactory
 
     public static GmailService Create(GmailConnectionConfig config)
     {
+        // GoogleCredential.FromJson(string) is marked obsolete as of Google.Apis.Auth 1.75
+        // (Google recommends CredentialFactory.*(...).ToGoogleCredential()). It is functionally
+        // correct and secure for our in-memory SA-JSON parse; suppress the obsolete-as-error under
+        // warnings-as-errors so dependency bumps don't red the build. TODO: migrate to
+        // CredentialFactory when we adopt Google.Apis.Auth >= 1.75.
+#pragma warning disable CS0618 // Type or member is obsolete
         var credential = GoogleCredential
             .FromJson(config.ServiceAccountJson)
             .CreateScoped(RequiredScopes)
             .CreateWithUser(config.DelegatedUser); // domain-wide delegation impersonation
+#pragma warning restore CS0618
 
         return new GmailService(new BaseClientService.Initializer
         {
