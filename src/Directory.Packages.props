@@ -29,7 +29,7 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Redis -->
-    <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
+    <PackageVersion Include="StackExchange.Redis" Version="3.0.11" />
     <!-- Messaging (MassTransit 8.x = free Apache-2.0; 9.x is commercial) -->
     <PackageVersion Include="MassTransit" Version="8.5.9" />
     <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.9" />
