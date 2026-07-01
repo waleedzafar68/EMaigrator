@@ -1,27 +1,43 @@
 version: 2
+# Dependabot volume was the main Actions-minute drain: weekly runs with a 10-PR limit and
+# majors arriving as individual PRs meant ~15 PRs/week, each firing the full CI (+ formerly
+# CodeQL) suite. Now: monthly cadence, everything grouped into at most two PRs per ecosystem
+# (safe minor/patch vs. reviewed majors), low open-PR caps. One grouped PR = one CI run.
 updates:
   # .NET (NuGet) — central package management lives in src/Directory.Packages.props
   - package-ecosystem: nuget
     directory: /src
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 5
     groups:
-      dotnet-minor-patch:
+      nuget-minor-patch:
+        patterns: ["*"]
         update-types: [minor, patch]
+      nuget-major:
+        patterns: ["*"]
+        update-types: [major]
 
   # Frontend (npm)
   - package-ecosystem: npm
     directory: /web
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 10
+      interval: monthly
+    open-pull-requests-limit: 5
     groups:
       npm-minor-patch:
+        patterns: ["*"]
         update-types: [minor, patch]
+      npm-major:
+        patterns: ["*"]
+        update-types: [major]
 
   # GitHub Actions used by the workflows
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      actions-all:
+        patterns: ["*"]

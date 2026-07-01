@@ -3,10 +3,37 @@ name: CI
 on:
   push:
     branches: [main]
+    # Docs/markdown/asset-only commits can't affect the build or tests — skip the
+    # suite so they don't burn Actions minutes.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - "**/*.png"
+      - "**/*.svg"
+      - "**/*.jpg"
   pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".github/ISSUE_TEMPLATE/**"
+      - ".github/PULL_REQUEST_TEMPLATE.md"
+      - "**/*.png"
+      - "**/*.svg"
+      - "**/*.jpg"
 
 permissions:
   contents: read
+
+# One run per ref: a newer push cancels the in-flight run instead of paying for both.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # Fast, hermetic .NET tests — the unit/architecture/WireMock suites that need no Docker.

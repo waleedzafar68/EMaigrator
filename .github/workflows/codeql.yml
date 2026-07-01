@@ -1,15 +1,20 @@
 name: CodeQL
 
+# CodeQL is a periodic security scan, not a per-commit gate. Running it on every push
+# and every PR (incl. each Dependabot PR) was the single biggest Actions-minute drain
+# (~7 min x 2 languages per event). Keep the weekly scan + on-demand dispatch; drop the
+# push/PR triggers. Re-add `pull_request:` here if you later require CodeQL on PRs.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   schedule:
     - cron: "27 3 * * 1" # weekly, Monday 03:27 UTC
+  workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
