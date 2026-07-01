@@ -134,7 +134,7 @@
   <!-- Plan 08 (API) Task 10: QuestPDF (MIT for OSS via the Community license) renders the downloadable
        PDF migration report. SkiaSharp native assets restore transitively on .NET 10. -->
   <ItemGroup>
-    <PackageVersion Include="QuestPDF" Version="2024.12.3" />
+    <PackageVersion Include="QuestPDF" Version="2026.6.1" />
   </ItemGroup>
 
   <!-- Plan 09 (CLI). System.CommandLine (beta5) is the parsing/invocation engine; Spectre.Console renders
