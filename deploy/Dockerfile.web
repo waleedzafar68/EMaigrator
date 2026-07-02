@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 
 # ── Build the SPA (production: mocks are tree-shaken out — VITE_USE_MOCKS is never set) ──
-FROM node:22-alpine AS build
+# The bundle is arch-independent; build on the native platform so multi-arch pushes never emulate node.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
 COPY web/ ./
 # npm ci wipes and reinstalls node_modules for linux even if the host's were copied in, so the build

@@ -1,10 +1,15 @@
 # syntax=docker/dockerfile:1
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Multi-arch: the build stage always runs on the builder's native platform ($BUILDPLATFORM) and
+# CROSS-COMPILES for $TARGETARCH — .NET restore/publish under QEMU emulation is painfully slow and
+# flaky, so we never emulate the SDK. (dotnet uses RID arch "x64" where Docker says "amd64".)
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
 WORKDIR /app
 COPY src/Directory.Build.props src/Directory.Packages.props src/EMaigrator.sln ./src/
 COPY src/ ./src/
-RUN dotnet restore src/EMaigrator.Api/EMaigrator.Api.csproj
-RUN dotnet publish src/EMaigrator.Api/EMaigrator.Api.csproj -c Release -o /out --no-restore
+RUN arch=$(case "$TARGETARCH" in amd64) echo x64;; *) echo "$TARGETARCH";; esac) \
+    && dotnet restore src/EMaigrator.Api/EMaigrator.Api.csproj -a "$arch" \
+    && dotnet publish src/EMaigrator.Api/EMaigrator.Api.csproj -c Release -a "$arch" -o /out --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
