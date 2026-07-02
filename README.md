@@ -46,6 +46,16 @@ a single same-origin URL. To stop: `docker compose -f deploy/docker-compose.yml 
 > another local stack, set the matching `*_PORT` in `deploy/.env` (e.g. `POSTGRES_PORT=5434`,
 > `WEB_PORT=3002`) and re-run. Internal service-to-service traffic uses container DNS and is unaffected.
 
+**Prebuilt images** — every release publishes multi-arch (amd64 + arm64) images to
+[Docker Hub](https://hub.docker.com/r/waleedzafar68/emaigrator) with service-prefixed tags
+(`api-v0.1.0`/`api-latest`, `workers-…`, `web-…`). The compose app services default to them; to run from
+the registry instead of building from source:
+
+```bash
+docker compose -f deploy/docker-compose.yml pull
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --no-build
+```
+
 ## Development
 
 Prerequisites: **.NET 10 SDK**, **Node 24+**, and Docker Desktop (for the integration tests).
