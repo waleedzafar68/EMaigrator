@@ -1,9 +1,16 @@
 name: Docker Publish
 
-# Builds and pushes the three app images to Docker Hub whenever a version tag is pushed:
+# Builds and pushes the three app images into ONE Docker Hub repo (waleedzafar68/emaigrator)
+# whenever a version tag is pushed:
 #   git tag -a vX.Y.Z && git push origin vX.Y.Z
-# Each image gets :X.Y.Z, :X.Y, and :latest. Multi-arch (amd64 + arm64) — the Dockerfiles
-# cross-compile on the native builder, so no slow QEMU-emulated .NET builds.
+# Tag scheme (service-prefixed, since the repo is shared):
+#   api-vX.Y.Z    api-vX.Y    api-latest
+#   workers-vX.Y.Z ...        workers-latest
+#   web-vX.Y.Z    ...         web-latest
+# NOTE: flavor latest=false is REQUIRED — the default would let all three matrix jobs fight
+# over a meaningless plain :latest on the shared repo.
+# Multi-arch (amd64 + arm64) — the Dockerfiles cross-compile on the native builder, so no slow
+# QEMU-emulated .NET builds.
 # Requires ONE repo secret: DOCKERHUB_TOKEN (a Docker Hub access token with Read & Write scope).
 
 on:
@@ -43,10 +50,13 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: docker.io/waleedzafar68/emaigrator-${{ matrix.name }}
+          images: docker.io/waleedzafar68/emaigrator
+          flavor: |
+            latest=false
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern=v{{version}},prefix=${{ matrix.name }}-
+            type=semver,pattern=v{{major}}.{{minor}},prefix=${{ matrix.name }}-
+            type=raw,value=${{ matrix.name }}-latest
       - name: Build and push (linux/amd64 + linux/arm64)
         uses: docker/build-push-action@v6
         with:

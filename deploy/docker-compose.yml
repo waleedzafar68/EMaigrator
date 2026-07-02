@@ -58,10 +58,11 @@ services:
       retries: 10
 
   api:
-    # Published images live on Docker Hub (pushed by .github/workflows/docker-publish.yml on each
-    # v* tag). With both `image:` and `build:` present, a cloned repo still builds from source by
+    # Published images live in ONE Docker Hub repo, service-prefixed tags (pushed by
+    # .github/workflows/docker-publish.yml on each v* tag): emaigrator:api-vX.Y.Z / api-latest.
+    # With both `image:` and `build:` present, a cloned repo still builds from source by
     # default; `docker compose pull` (or removing build:) uses the published image instead.
-    image: ${API_IMAGE:-waleedzafar68/emaigrator-api:latest}
+    image: ${API_IMAGE:-waleedzafar68/emaigrator:api-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
@@ -96,7 +97,7 @@ services:
         condition: service_healthy
 
   workers:
-    image: ${WORKERS_IMAGE:-waleedzafar68/emaigrator-workers:latest}
+    image: ${WORKERS_IMAGE:-waleedzafar68/emaigrator:workers-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.workers
@@ -121,7 +122,7 @@ services:
         condition: service_healthy
 
   web:
-    image: ${WEB_IMAGE:-waleedzafar68/emaigrator-web:latest}
+    image: ${WEB_IMAGE:-waleedzafar68/emaigrator:web-latest}
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
