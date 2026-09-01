@@ -6,12 +6,12 @@
   <ItemGroup>
     <!-- Framework packages introduced by the SDK project templates (Api/Workers).
          Versionless PackageReferences in those csproj resolve to these. -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <!-- Test stack (versions ship with .NET SDK 10.0.204 templates / current as of 2026-06). -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="6.12.2" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
@@ -26,16 +26,16 @@
     <!-- EF Core + PostgreSQL -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
-    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageVersion Include="Npgsql" Version="10.0.3" />
     <!-- Redis -->
     <PackageVersion Include="StackExchange.Redis" Version="2.13.17" />
     <!-- Messaging (MassTransit 8.x = free Apache-2.0; 9.x is commercial) -->
-    <PackageVersion Include="MassTransit" Version="8.5.9" />
-    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.9" />
+    <PackageVersion Include="MassTransit" Version="8.5.10" />
+    <PackageVersion Include="MassTransit.RabbitMQ" Version="8.5.10" />
     <!-- Plan 07 (Workers): in-memory test harness for the consumer unit tests (kept on the 8.5.9 line). -->
-    <PackageVersion Include="MassTransit.TestFramework" Version="8.5.9" />
-    <PackageVersion Include="RabbitMQ.Client" Version="7.2.1" />
+    <PackageVersion Include="MassTransit.TestFramework" Version="8.5.10" />
+    <PackageVersion Include="RabbitMQ.Client" Version="7.2.2" />
     <!-- Secrets / KMS (Azure Key Vault Keys for envelope wrap/unwrap) -->
     <PackageVersion Include="Azure.Security.KeyVault.Keys" Version="4.10.0" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
@@ -45,9 +45,9 @@
     <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
     <PackageVersion Include="Serilog.Sinks.InMemory" Version="2.0.0" />
     <PackageVersion Include="Serilog.Sinks.InMemory.Assertions" Version="2.0.0" />
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.3" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.18.0" />
     <!-- Health checks (Rabbitmq 9.0.0 = RabbitMQ.Client 7.x, matches MassTransit 8.5.9) -->
     <PackageVersion Include="AspNetCore.HealthChecks.NpgSql" Version="9.0.0" />
     <PackageVersion Include="AspNetCore.HealthChecks.Redis" Version="9.0.0" />
@@ -56,15 +56,15 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.8" />
     <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <!-- Integration-test containers -->
-    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.12.0" />
-    <PackageVersion Include="Testcontainers.Redis" Version="4.12.0" />
-    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.12.0" />
+    <PackageVersion Include="Testcontainers.PostgreSql" Version="4.14.0" />
+    <PackageVersion Include="Testcontainers.Redis" Version="4.14.0" />
+    <PackageVersion Include="Testcontainers.RabbitMq" Version="4.14.0" />
   </ItemGroup>
 
   <!-- Plan 04 (Connector: IMAP). MailKit/MimeKit (MIT) are the IMAP client + MIME stack;
@@ -74,10 +74,10 @@
   <ItemGroup>
     <!-- 4.16.0 is the first release patching CVE-2026-41319 (MailKit STARTTLS response
          injection) and CVE-2026-30227 (MimeKit CRLF injection); earlier 4.x fails NU1902. -->
-    <PackageVersion Include="MailKit" Version="4.16.0" />
-    <PackageVersion Include="MimeKit" Version="4.16.0" />
-    <PackageVersion Include="Testcontainers" Version="4.12.0" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.8" />
+    <PackageVersion Include="MailKit" Version="4.17.0" />
+    <PackageVersion Include="MimeKit" Version="4.17.0" />
+    <PackageVersion Include="Testcontainers" Version="4.14.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
   </ItemGroup>
 
   <!-- Plan 05 (Connector: Graph). Microsoft.Graph v5 (Kiota-based) + Azure.Identity (already pinned above)
@@ -87,14 +87,14 @@
        (CentralPackageTransitivePinningEnabled); pinned explicitly here for deterministic, audit-clean restore. -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.Graph" Version="5.105.0" />
-    <PackageVersion Include="WireMock.Net" Version="2.8.0" />
+    <PackageVersion Include="WireMock.Net" Version="2.15.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.8" />
     <!-- Override the transitive Microsoft.Kiota.Abstractions (Graph.Core 3.2.5 floats to 1.21.1, which has
          CVE-2026-44503 / GHSA-7j59-v9qr-6fq9, a high-severity RedirectHandler header-leak → fails NU1903).
          1.22.0 is the patched release; pinning it here lifts the transitive resolution solution-wide. -->
     <PackageVersion Include="Microsoft.Kiota.Abstractions" Version="1.22.0" />
     <!-- Conditional [SkippableFact] for the gated M365 live-smoke tests (xUnit 2.9.3 has no dynamic skip). -->
-    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.23" />
+    <PackageVersion Include="Xunit.SkippableFact" Version="1.5.85" />
   </ItemGroup>
 
   <!-- Supply-chain transitive pins (CentralPackageTransitivePinningEnabled). These flow in transitively
@@ -113,8 +113,8 @@
        Newtonsoft.Json stack transitively (auto-pinned via CentralPackageTransitivePinningEnabled).
        WireMock.Net (pinned above) mocks Gmail HTTP for offline fixtures. -->
   <ItemGroup>
-    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.69.0.3742" />
-    <PackageVersion Include="Google.Apis.Auth" Version="1.69.0" />
+    <PackageVersion Include="Google.Apis.Gmail.v1" Version="1.75.0.4225" />
+    <PackageVersion Include="Google.Apis.Auth" Version="1.76.0" />
   </ItemGroup>
 
   <!-- Plan 08 (API) test stack. Microsoft.AspNetCore.Mvc.Testing boots the in-process server via
@@ -125,7 +125,7 @@
     <PackageVersion Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.8" />
     <!-- Task 6: the Redis SignalR backplane for horizontal hub fan-out across API nodes
          (conditionally enabled when Redis:Configuration is present; off in tests). -->
-    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.11" />
   </ItemGroup>
 
   <!-- Plan 08 (API) identity + auth. Microsoft.AspNetCore.Identity.EntityFrameworkCore hosts the
@@ -134,12 +134,12 @@
        handler the issuer uses. Pinned to the .NET 10 servicing line (10.0.8). -->
   <ItemGroup>
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
   </ItemGroup>
 
   <!-- Plan 08 (API) Task 5: CsvHelper (MS-PL/Apache-2.0) parses the multipart mailbox-scope CSV upload. -->
   <ItemGroup>
-    <PackageVersion Include="CsvHelper" Version="33.0.1" />
+    <PackageVersion Include="CsvHelper" Version="33.1.0" />
   </ItemGroup>
 
   <!-- Plan 08 (API) Task 10: QuestPDF (MIT for OSS via the Community license) renders the downloadable
@@ -152,9 +152,9 @@
        the human-readable tables/spinners; the Configuration.Json + EnvironmentVariables providers back
        the profile/secret resolution stack. All MIT/Apache-2.0, container-friendly. -->
   <ItemGroup>
-    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
-    <PackageVersion Include="Spectre.Console" Version="0.49.1" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.8" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.8" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.11" />
+    <PackageVersion Include="Spectre.Console" Version="0.57.2" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.11" />
   </ItemGroup>
 </Project>
